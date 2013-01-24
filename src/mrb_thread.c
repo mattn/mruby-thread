@@ -28,12 +28,12 @@ static const struct mrb_data_type mrb_thread_context_type = {
 static void*
 mrb_thread_func(void* data) {
   mrb_thread_context* context = (mrb_thread_context*) data;
-  mrb_state* mrb;
-
-  mrb = mrb_open();
+  mrb_state* mrb = mrb_open();
   int i;
   for (i = 0; i < context->argc; i++) {
-    context->argv[i] = mrb_obj_clone(mrb, context->argv[i]);
+    if (mrb_special_const_p(context->argv[i])) {
+      context->argv[i] = mrb_obj_clone(mrb, context->argv[i]);
+    }
   }
   struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
   mrb_yield_argv(mrb, mrb_obj_value(np), context->argc, context->argv);
