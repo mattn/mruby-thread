@@ -15,6 +15,7 @@ typedef struct {
   mrb_value* argv;
   struct RProc* proc;
   pthread_t thread;
+  mrb_state* mrb_caller;
   mrb_state* mrb;
   mrb_value result;
 } mrb_thread_context;
@@ -85,16 +86,9 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
 static void*
 mrb_thread_func(void* data) {
   mrb_thread_context* context = (mrb_thread_context*) data;
-  mrb_state* mrb = mrb_open();
-  int i;
-  for (i = 0; i < context->argc; i++) {
-    if (mrb_special_const_p(context->argv[i])) {
-      context->argv[i] = migrate_simple_value(context->mrb, context->argv[i], mrb);
-    }
-  }
+  mrb_state* mrb = context->mrb;
   struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
   context->result = mrb_yield_argv(mrb, mrb_obj_value(np), context->argc, context->argv);
-  context->mrb = mrb;
   return NULL;
 }
 
@@ -109,8 +103,13 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     context->proc = mrb_proc_ptr(proc);
     context->argc = argc;
     context->argv = argv;
-    context->mrb = mrb;
+    context->mrb_caller = mrb;
+    context->mrb = mrb_open();
     context->result = mrb_nil_value();
+    int i;
+    for (i = 0; i < context->argc; i++) {
+      context->argv[i] = migrate_simple_value(mrb, context->argv[i], context->mrb);
+    }
 
     mrb_iv_set(mrb, self, mrb_intern(mrb, "context"), mrb_obj_value(
       Data_Wrap_Struct(mrb, mrb->object_class,
