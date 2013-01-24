@@ -31,6 +31,10 @@ mrb_thread_func(void* data) {
   mrb_state* mrb;
 
   mrb = mrb_open();
+  int i;
+  for (i = 0; i < context->argc; i++) {
+    context->argv[i] = mrb_obj_clone(mrb, context->argv[i]);
+  }
   struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
   mrb_yield_argv(mrb, mrb_obj_value(np), context->argc, context->argv);
   mrb_close(mrb);
