@@ -1,6 +1,7 @@
 #include <mruby.h>
 #include <mruby/string.h>
 #include <mruby/array.h>
+#include <mruby/hash.h>
 #include <mruby/proc.h>
 #include <mruby/data.h>
 #include <mruby/variable.h>
@@ -72,6 +73,23 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
         int ai = mrb_gc_arena_save(mrb2);
         a1->ptr[i] = migrate_simple_value(mrb, a0->ptr[i], mrb2);
         a1->len++;
+        mrb_gc_arena_restore(mrb2, ai);
+      }
+    }
+    break;
+  case MRB_TT_HASH:
+    {
+      mrb_value ka;
+      int i, l;
+
+      nv = mrb_hash_new(mrb2);
+      ka = mrb_hash_keys(mrb, v);
+      l = RARRAY_LEN(ka);
+      for (i = 0; i < l; i++) {
+        int ai = mrb_gc_arena_save(mrb2);
+        mrb_value k = migrate_simple_value(mrb, mrb_ary_entry(ka, i), mrb2);
+        mrb_value o = migrate_simple_value(mrb, mrb_hash_get(mrb, v, k), mrb2);
+        mrb_hash_set(mrb2, nv, k, o);
         mrb_gc_arena_restore(mrb2, ai);
       }
     }
