@@ -6,10 +6,13 @@
 #include <mruby/data.h>
 #include <mruby/variable.h>
 #include <string.h>
+#ifndef _MSC_VER
 #include <strings.h>
+#endif
 #include <ctype.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct {
   int argc;
