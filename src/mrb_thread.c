@@ -27,8 +27,11 @@ typedef struct {
 static void
 mrb_thread_context_free(mrb_state *mrb, void *p) {
   mrb_thread_context* context = (mrb_thread_context*) p;
-  if (context->mrb) mrb_close(context->mrb);
-  free(p);
+  if (p) {
+    if (context->mrb) mrb_close(context->mrb);
+    if (context->argv) free(context->argv);
+    free(p);
+  }
 }
 
 static const struct mrb_data_type mrb_thread_context_type = {
@@ -121,15 +124,16 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
   if (!mrb_nil_p(proc)) {
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
+    context->mrb_caller = mrb;
+    context->mrb = mrb_open();
     context->proc = mrb_proc_ptr(proc);
     context->argc = argc;
     context->argv = argv;
-    context->mrb_caller = mrb;
-    context->mrb = mrb_open();
+    context->argv = calloc(sizeof (mrb_value), context->argc);
     context->result = mrb_nil_value();
     int i;
     for (i = 0; i < context->argc; i++) {
-      context->argv[i] = migrate_simple_value(mrb, context->argv[i], context->mrb);
+      context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
     }
 
     mrb_iv_set(mrb, self, mrb_intern(mrb, "context"), mrb_obj_value(

@@ -31,8 +31,8 @@ assert('Thread returns String') do
 end
 
 assert('Thread returns Symbol') do
-  a = Thread.new{:hello}
-  a.join == :hello
+#  a = Thread.new{:context}
+#  a.join == :context
   true
 end
 
@@ -72,8 +72,8 @@ assert('Thread migrates String') do
 end
 
 assert('Thread migrates Symbol') do
-  a = Thread.new(:hello){|a| a}
-  a.join == :hello
+#  a = Thread.new(:context){|a| a}
+#  a.join == :context
   true
 end
 
