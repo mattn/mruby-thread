@@ -136,7 +136,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
       context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
     }
 
-    mrb_iv_set(mrb, self, mrb_intern(mrb, "context"), mrb_obj_value(
+    mrb_iv_set(mrb, self, mrb_intern_cstr(mrb, "context"), mrb_obj_value(
       Data_Wrap_Struct(mrb, mrb->object_class,
       &mrb_thread_context_type, (void*) context)));
 
@@ -147,7 +147,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_thread_join(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern(mrb, "context"));
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_cstr(mrb, "context"));
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
   pthread_join(context->thread, NULL);
