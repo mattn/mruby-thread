@@ -42,8 +42,6 @@ static const struct mrb_data_type mrb_thread_context_type = {
 static mrb_value
 migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   mrb_value nv;
-  const char *s;
-  int len;
 
   nv.tt = v.tt;
   switch (mrb_type(v)) {
@@ -59,13 +57,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     nv.value.f = v.value.f;
     break;
   case MRB_TT_STRING:
-    {
-      struct RString *str = mrb_str_ptr(v);
-
-      s = str->ptr;
-      len = str->len;
-      nv = mrb_str_new(mrb2, s, len);
-    }
+    nv = mrb_str_new(mrb2, RSTRING_PTR(v), RSTRING_LEN(v));
     break;
   case MRB_TT_ARRAY:
     {
@@ -111,7 +103,6 @@ static void*
 mrb_thread_func(void* data) {
   mrb_thread_context* context = (mrb_thread_context*) data;
   mrb_state* mrb = context->mrb;
-  struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
   context->result = mrb_yield_argv(mrb, mrb_obj_value(context->proc), context->argc, context->argv);
   return NULL;
 }
@@ -123,6 +114,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_value* argv;
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
   if (!mrb_nil_p(proc)) {
+    int i;
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
     context->mrb_caller = mrb;
     context->mrb = mrb_open();
@@ -131,7 +123,6 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     context->argv = argv;
     context->argv = calloc(sizeof (mrb_value), context->argc);
     context->result = mrb_nil_value();
-    int i;
     for (i = 0; i < context->argc; i++) {
       context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
     }
