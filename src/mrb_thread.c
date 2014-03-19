@@ -9,6 +9,9 @@
 #ifndef _MSC_VER
 #include <strings.h>
 #endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <ctype.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -38,13 +41,28 @@ static const struct mrb_data_type mrb_thread_context_type = {
   "mrb_thread_context", mrb_thread_context_free,
 };
 
+static void
+mrb_mutex_context_free(mrb_state *mrb, void *p) {
+  pthread_mutex_t mutex = (pthread_mutex_t) p;
+  if (mutex) {
+    pthread_mutex_unlock(&mutex);
+  }
+}
+
+static const struct mrb_data_type mrb_mutex_context_type = {
+  "mrb_mutex_context", mrb_mutex_context_free,
+};
+
 // based on https://gist.github.com/3066997
 static mrb_value
 migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
-  mrb_value nv;
+  mrb_value nv = mrb_nil_value();
 
   nv.tt = v.tt;
   switch (mrb_type(v)) {
+  case MRB_TT_OBJECT:
+    nv.value.p = v.value.p;
+    break;
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
@@ -149,11 +167,92 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
   return context->result;
 }
 
+static mrb_value
+mrb_mutex_init(mrb_state* mrb, mrb_value self) {
+  DATA_PTR(self) = NULL;
+  DATA_TYPE(self) = &mrb_mutex_context_type;
+  return self;
+}
+
+static mrb_value
+mrb_mutex_lock(mrb_state* mrb, mrb_value self) {
+  pthread_mutex_t mutex = DATA_PTR(self);
+  if (mutex == NULL) {
+    pthread_mutex_init(&mutex, NULL);
+    pthread_mutex_lock(&mutex);
+    DATA_PTR(self) = mutex;
+  }
+  return mrb_nil_value();
+}
+
+static mrb_value
+mrb_mutex_try_lock(mrb_state* mrb, mrb_value self) {
+  pthread_mutex_t mutex = DATA_PTR(self);
+  if (mutex == NULL) {
+    pthread_mutex_init(&mutex, NULL);
+    if (pthread_mutex_trylock(&mutex) == 0) {
+      DATA_PTR(self) = mutex;
+      return mrb_true_value();
+    }
+  }
+  return mrb_false_value();
+}
+
+static mrb_value
+mrb_mutex_locked(mrb_state* mrb, mrb_value self) {
+  pthread_mutex_t mutex = DATA_PTR(self);
+  return mutex != NULL ? mrb_true_value() : mrb_false_value();
+}
+
+static mrb_value
+mrb_mutex_unlock(mrb_state* mrb, mrb_value self) {
+  pthread_mutex_t mutex = DATA_PTR(self);
+  if (mutex != NULL) {
+    pthread_mutex_unlock(&mutex);
+    pthread_mutex_destroy(&mutex);
+    DATA_PTR(self) = NULL;
+  }
+  return mrb_nil_value();
+}
+
+static mrb_value
+mrb_mutex_sleep(mrb_state* mrb, mrb_value self) {
+  mrb_int t;
+  mrb_get_args(mrb, "i", &t);
+#ifndef _WIN32
+  sleep(t);
+#else
+  Sleep(t * 1000);
+#endif
+  return mrb_mutex_unlock(mrb, self);
+}
+
+static mrb_value
+mrb_mutex_synchronize(mrb_state* mrb, mrb_value self) {
+  mrb_value proc = mrb_nil_value();
+  mrb_get_args(mrb, "&", &proc);
+  if (!mrb_nil_p(proc)) {
+    mrb_mutex_lock(mrb, self);
+    mrb_yield_argv(mrb, proc, 0, NULL);
+    mrb_mutex_unlock(mrb, self);
+  }
+  return mrb_nil_value();
+}
+
 void
 mrb_mruby_thread_gem_init(mrb_state* mrb) {
-  struct RClass* _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
+  struct RClass *_class_thread, *_class_mutex;
+  _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
   mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, ARGS_OPT(1));
   mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, ARGS_NONE());
+  _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
+  mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "lock", mrb_mutex_lock, ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "try_lock", mrb_mutex_try_lock, ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "locked?", mrb_mutex_locked, ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "sleep", mrb_mutex_sleep, ARGS_REQ(1));
+  mrb_define_method(mrb, _class_mutex, "synchronize", mrb_mutex_synchronize, ARGS_REQ(1));
+  mrb_define_method(mrb, _class_mutex, "unlock", mrb_mutex_unlock, ARGS_NONE());
 }
 
 void
