@@ -112,7 +112,7 @@ mrb_thread_func(void* data) {
   mrb_thread_context* context = (mrb_thread_context*) data;
   mrb_state* mrb = context->mrb;
   struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
-  context->result = mrb_yield_argv(mrb, mrb_obj_value(np), context->argc, context->argv);
+  context->result = mrb_yield_argv(mrb, mrb_obj_value(context->proc), context->argc, context->argv);
   return NULL;
 }
 
