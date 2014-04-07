@@ -175,6 +175,28 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
 }
 
 static mrb_value
+mrb_thread_kill(mrb_state* mrb, mrb_value self) {
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_cstr(mrb, "context"));
+  mrb_thread_context* context = NULL;
+  Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
+  pthread_kill(context->thread, 0);
+
+  mrb_close(context->mrb);
+  context->mrb = NULL;
+  return context->result;
+}
+
+static mrb_value
+mrb_thread_alive(mrb_state* mrb, mrb_value self) {
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_cstr(mrb, "context"));
+  mrb_thread_context* context = NULL;
+  Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
+
+  context->mrb = NULL;
+  return context->mrb != NULL ? mrb_true_value() : mrb_false_value();
+}
+
+static mrb_value
 mrb_thread_sleep(mrb_state* mrb, mrb_value self) {
   mrb_int t;
   mrb_get_args(mrb, "i", &t);
@@ -262,6 +284,9 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
   mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, ARGS_OPT(1));
   mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "kill", mrb_thread_kill, ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, ARGS_NONE());
   mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, ARGS_REQ(1));
   _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
   mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, ARGS_NONE());
