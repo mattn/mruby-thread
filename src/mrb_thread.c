@@ -122,6 +122,11 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
       }
     }
     break;
+  case MRB_TT_DATA:
+    nv = v;
+    DATA_PTR(nv) = DATA_PTR(v);
+    DATA_TYPE(nv) = DATA_TYPE(v);
+    break;
   default:
     mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     break;
@@ -150,7 +155,6 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     context->mrb = mrb_open();
     context->proc = mrb_proc_ptr(proc);
     context->argc = argc;
-    context->argv = argv;
     context->argv = calloc(sizeof (mrb_value), context->argc);
     context->result = mrb_nil_value();
     for (i = 0; i < context->argc; i++) {
@@ -161,16 +165,14 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
       mrb_value gv = mrb_funcall(mrb, self, "global_variables", 0, NULL);
       l = RARRAY_LEN(gv);
       for (i = 0; i < l; i++) {
+        mrb_int len;
         int ai = mrb_gc_arena_save(mrb);
         mrb_value k = mrb_ary_entry(gv, i);
         mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
-        if (mrb_type(o) != MRB_TT_DATA) {
-          mrb_int len;
-          const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
-          mrb_gv_set(context->mrb,
-            mrb_intern_static(context->mrb, p, len),
-            migrate_simple_value(mrb, o, context->mrb));
-        }
+        const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
+        mrb_gv_set(context->mrb,
+          mrb_intern_static(context->mrb, p, len),
+          migrate_simple_value(mrb, o, context->mrb));
         mrb_gc_arena_restore(mrb, ai);
       }
     }
