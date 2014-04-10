@@ -169,7 +169,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
           mrb_int len;
           const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
           mrb_gv_set(context->mrb,
-            mrb_intern_str(context->mrb, mrb_str_new_static(context->mrb, p, len)),
+            mrb_intern_static(context->mrb, p, len),
             migrate_simple_value(mrb, o, context->mrb));
         }
         mrb_gc_arena_restore(mrb, ai);
