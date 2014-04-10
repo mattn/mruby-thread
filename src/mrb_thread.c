@@ -382,6 +382,7 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_queue_num_waiting(mrb_state* mrb, mrb_value self) {
+  /* TODO */
   return mrb_fixnum_value(0);
 }
 
