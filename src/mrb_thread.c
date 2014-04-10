@@ -4,6 +4,7 @@
 #include <mruby/hash.h>
 #include <mruby/proc.h>
 #include <mruby/data.h>
+#include <mruby/value.h>
 #include <mruby/variable.h>
 #include <string.h>
 #ifndef _MSC_VER
@@ -76,7 +77,11 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     nv.value.i = v.value.i;
     break;
   case MRB_TT_SYMBOL:
-    nv = mrb_symbol_value(mrb_intern_str(mrb2, v));
+    {
+      mrb_int len;
+      const char *p = mrb_sym2name_len(mrb, mrb_symbol(v), &len);
+      nv = mrb_symbol_value(mrb_intern_str(mrb2, mrb_str_new_static(mrb2, p, len)));
+    }
     break;
   case MRB_TT_FLOAT:
     nv.value.f = v.value.f;
@@ -118,6 +123,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     }
     break;
   default:
+    printf("%d\n", mrb_type(v));
     mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     break;
   }
@@ -139,7 +145,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_value* argv;
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
   if (!mrb_nil_p(proc)) {
-    int i;
+    int i, l;
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
     context->mrb_caller = mrb;
     context->mrb = mrb_open();
@@ -152,7 +158,25 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
       context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
     }
 
-    mrb_iv_set(mrb, self, mrb_intern_cstr(mrb, "context"), mrb_obj_value(
+    {
+      mrb_value gv = mrb_funcall(mrb, self, "global_variables", 0, NULL);
+      l = RARRAY_LEN(gv);
+      for (i = 0; i < l; i++) {
+        int ai = mrb_gc_arena_save(mrb);
+        mrb_value k = mrb_ary_entry(gv, i);
+        mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
+        if (mrb_type(o) != MRB_TT_DATA) {
+          mrb_int len;
+          const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
+          mrb_gv_set(context->mrb,
+            mrb_intern_str(context->mrb, mrb_str_new_static(context->mrb, p, len)),
+            migrate_simple_value(mrb, o, context->mrb));
+        }
+        mrb_gc_arena_restore(mrb, ai);
+      }
+    }
+
+    mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "context"), mrb_obj_value(
       Data_Wrap_Struct(mrb, mrb->object_class,
       &mrb_thread_context_type, (void*) context)));
 
@@ -163,7 +187,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_thread_join(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_cstr(mrb, "context"));
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
   pthread_join(context->thread, NULL);
@@ -176,7 +200,7 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_thread_kill(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_cstr(mrb, "context"));
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
   pthread_kill(context->thread, 0);
@@ -188,7 +212,7 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_thread_alive(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_cstr(mrb, "context"));
+  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
 
