@@ -123,7 +123,6 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     }
     break;
   default:
-    printf("%d\n", mrb_type(v));
     mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     break;
   }
