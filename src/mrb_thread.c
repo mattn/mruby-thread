@@ -9,12 +9,12 @@
 #include <string.h>
 #ifndef _MSC_VER
 #include <strings.h>
+#include <unistd.h>
 #endif
 #ifdef _WIN32
 #include <windows.h>
 #endif
 #include <ctype.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
