@@ -212,7 +212,7 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
   pthread_join(context->thread, NULL);
 
-  context->result = migrate_simple_value(mrb, context->result, mrb);
+  context->result = migrate_simple_value(context->mrb, context->result, mrb);
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
