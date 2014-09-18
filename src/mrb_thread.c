@@ -164,7 +164,7 @@ mrb_thread_func(void* data) {
 static mrb_value
 mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_value proc = mrb_nil_value();
-  int argc;
+  mrb_int argc;
   mrb_value* argv;
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
   if (!mrb_nil_p(proc)) {
