@@ -2,6 +2,7 @@
 #include <mruby/string.h>
 #include <mruby/array.h>
 #include <mruby/hash.h>
+#include <mruby/range.h>
 #include <mruby/proc.h>
 #include <mruby/data.h>
 #include <mruby/class.h>
@@ -133,6 +134,12 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     break;
   case MRB_TT_STRING:
     nv = mrb_str_new(mrb2, RSTRING_PTR(v), RSTRING_LEN(v));
+    break;
+  case MRB_TT_RANGE:
+    {
+      struct RRange *r = mrb_range_ptr(v);
+      nv = mrb_range_new(mrb2, r->edges->beg, r->edges->end, r->excl);
+    }
     break;
   case MRB_TT_ARRAY:
     {
