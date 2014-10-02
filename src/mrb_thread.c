@@ -8,6 +8,7 @@
 #include <mruby/class.h>
 #include <mruby/value.h>
 #include <mruby/variable.h>
+#include <mruby/class.h>
 #include <string.h>
 #ifndef _MSC_VER
 #include <strings.h>
