@@ -6,6 +6,7 @@
 #include <mruby/data.h>
 #include <mruby/value.h>
 #include <mruby/variable.h>
+#include <mruby/class.h>
 #include <string.h>
 #ifndef _MSC_VER
 #include <strings.h>
@@ -452,6 +453,7 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, ARGS_REQ(1));
 
   _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
+  MRB_SET_INSTANCE_TT(_class_mutex, MRB_TT_DATA);
   mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, ARGS_NONE());
   mrb_define_method(mrb, _class_mutex, "lock", mrb_mutex_lock, ARGS_NONE());
   mrb_define_method(mrb, _class_mutex, "try_lock", mrb_mutex_try_lock, ARGS_NONE());
@@ -461,6 +463,7 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, _class_mutex, "unlock", mrb_mutex_unlock, ARGS_NONE());
 
   _class_queue = mrb_define_class(mrb, "Queue", mrb->object_class);
+  MRB_SET_INSTANCE_TT(_class_queue, MRB_TT_DATA);
   mrb_define_method(mrb, _class_queue, "initialize", mrb_queue_init, ARGS_NONE());
   mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, ARGS_NONE());
   mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, ARGS_NONE());
