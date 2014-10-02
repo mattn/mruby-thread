@@ -115,12 +115,21 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
 
   nv.tt = v.tt;
   switch (mrb_type(v)) {
-#if 0
-    /* plain objects cannot be migrated */
   case MRB_TT_OBJECT:
-    nv.value.p = v.value.p;
+  case MRB_TT_EXCEPTION:
+    {
+      struct RObject *o = mrb_obj_ptr(v);
+      mrb_value path = mrb_class_path(mrb, o->c);
+      struct RClass *c;
+
+      if (mrb_nil_p(path)) {
+        mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate class");
+      }
+      c = mrb_class_get(mrb2, RSTRING_PTR(path));
+      nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
+    }
+    migrate_simple_iv(mrb, v, mrb2, nv);
     break;
-#endif
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
@@ -138,7 +147,10 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   case MRB_TT_RANGE:
     {
       struct RRange *r = mrb_range_ptr(v);
-      nv = mrb_range_new(mrb2, r->edges->beg, r->edges->end, r->excl);
+      nv = mrb_range_new(mrb2,
+                         migrate_simple_value(mrb, r->edges->beg, mrb2),
+                         migrate_simple_value(mrb, r->edges->end, mrb2),
+                         r->excl);
     }
     break;
   case MRB_TT_ARRAY:
