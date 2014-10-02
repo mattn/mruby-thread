@@ -80,6 +80,32 @@ static const struct mrb_data_type mrb_queue_context_type = {
   "mrb_queue_context", mrb_queue_context_free,
 };
 
+static mrb_value migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2);
+
+static mrb_sym
+migrate_sym(mrb_state *mrb, mrb_sym sym, mrb_state *mrb2)
+{
+  mrb_int len;
+  const char *p = mrb_sym2name_len(mrb, sym, &len);
+  return mrb_intern_static(mrb2, p, len);
+}
+
+static void
+migrate_simple_iv(mrb_state *mrb, mrb_value v, mrb_state *mrb2, mrb_value v2)
+{
+  mrb_value ivars = mrb_obj_instance_variables(mrb, v);
+  struct RArray *a = mrb_ary_ptr(ivars);
+  mrb_value iv;
+  mrb_int i;
+
+  for (i=0; i<a->len; i++) {
+    mrb_sym sym = mrb_symbol(a->ptr[i]);
+    mrb_sym sym2 = migrate_sym(mrb, sym, mrb2);
+    iv = mrb_iv_get(mrb, v, sym);
+    mrb_iv_set(mrb2, v2, sym2, migrate_simple_value(mrb, iv, mrb2));
+  }
+}
+
 // based on https://gist.github.com/3066997
 static mrb_value
 migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
@@ -87,20 +113,19 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
 
   nv.tt = v.tt;
   switch (mrb_type(v)) {
+#if 0
+    /* plain objects cannot be migrated */
   case MRB_TT_OBJECT:
     nv.value.p = v.value.p;
     break;
+#endif
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
     nv.value.i = v.value.i;
     break;
   case MRB_TT_SYMBOL:
-    {
-      mrb_int len;
-      const char *p = mrb_sym2name_len(mrb, mrb_symbol(v), &len);
-      nv = mrb_symbol_value(mrb_intern_str(mrb2, mrb_str_new_static(mrb2, p, len)));
-    }
+    nv = mrb_symbol_value(migrate_sym(mrb, mrb_symbol(v), mrb2));
     break;
   case MRB_TT_FLOAT:
     nv.value.f = v.value.f;
@@ -140,11 +165,13 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
         mrb_gc_arena_restore(mrb2, ai);
       }
     }
+    migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_DATA:
     nv = v;
     DATA_PTR(nv) = DATA_PTR(v);
     DATA_TYPE(nv) = DATA_TYPE(v);
+    migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   default:
     mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
@@ -157,7 +184,8 @@ static void*
 mrb_thread_func(void* data) {
   mrb_thread_context* context = (mrb_thread_context*) data;
   mrb_state* mrb = context->mrb;
-  context->result = mrb_yield_argv(mrb, mrb_obj_value(context->proc), context->argc, context->argv);
+  context->result = mrb_yield_with_class(mrb, mrb_obj_value(context->proc),
+                                         context->argc, context->argv, mrb_nil_value(), mrb->object_class);
   return NULL;
 }
 
@@ -167,12 +195,16 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_int argc;
   mrb_value* argv;
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
+  if (MRB_PROC_CFUNC_P(mrb_proc_ptr(proc))) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "forking C defined block");
+  }
   if (!mrb_nil_p(proc)) {
     int i, l;
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
     context->mrb_caller = mrb;
     context->mrb = mrb_open();
-    context->proc = mrb_proc_ptr(proc);
+    context->proc = mrb_proc_new(mrb, mrb_proc_ptr(proc)->body.irep);
+    context->proc->target_class = context->mrb->object_class;
     context->argc = argc;
     context->argv = calloc(sizeof (mrb_value), context->argc);
     context->result = mrb_nil_value();
