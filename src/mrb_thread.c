@@ -138,7 +138,10 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   case MRB_TT_RANGE:
     {
       struct RRange *r = mrb_range_ptr(v);
-      nv = mrb_range_new(mrb2, r->edges->beg, r->edges->end, r->excl);
+      nv = mrb_range_new(mrb2,
+                         migrate_simple_value(mrb, r->edges->beg, mrb2),
+                         migrate_simple_value(mrb, r->edges->end, mrb2),
+                         r->excl);
     }
     break;
   case MRB_TT_ARRAY:
