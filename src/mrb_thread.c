@@ -111,9 +111,8 @@ migrate_simple_iv(mrb_state *mrb, mrb_value v, mrb_state *mrb2, mrb_value v2)
 // based on https://gist.github.com/3066997
 static mrb_value
 migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
-  mrb_value nv = mrb_nil_value();
+  mrb_value nv;
 
-  nv.tt = v.tt;
   switch (mrb_type(v)) {
   case MRB_TT_OBJECT:
   case MRB_TT_EXCEPTION:
@@ -133,13 +132,13 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
-    nv.value.i = v.value.i;
+    nv = v;
     break;
   case MRB_TT_SYMBOL:
     nv = mrb_symbol_value(migrate_sym(mrb, mrb_symbol(v), mrb2));
     break;
   case MRB_TT_FLOAT:
-    nv.value.f = v.value.f;
+    nv = mrb_float_value(mrb2, mrb_float(v));
     break;
   case MRB_TT_STRING:
     nv = mrb_str_new(mrb2, RSTRING_PTR(v), RSTRING_LEN(v));
