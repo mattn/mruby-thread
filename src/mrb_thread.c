@@ -287,7 +287,6 @@ mrb_thread_alive(mrb_state* mrb, mrb_value self) {
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
 
-  context->mrb = NULL;
   return context->mrb != NULL ? mrb_true_value() : mrb_false_value();
 }
 
