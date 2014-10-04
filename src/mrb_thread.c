@@ -30,6 +30,7 @@ typedef struct {
   mrb_state* mrb_caller;
   mrb_state* mrb;
   mrb_value result;
+  mrb_bool alive;
 } mrb_thread_context;
 
 static void
@@ -206,6 +207,7 @@ mrb_thread_func(void* data) {
   mrb_state* mrb = context->mrb;
   context->result = mrb_yield_with_class(mrb, mrb_obj_value(context->proc),
                                          context->argc, context->argv, mrb_nil_value(), mrb->object_class);
+  context->alive = FALSE;
   return NULL;
 }
 
@@ -228,6 +230,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     context->argc = argc;
     context->argv = calloc(sizeof (mrb_value), context->argc);
     context->result = mrb_nil_value();
+    context->alive = TRUE;
     for (i = 0; i < context->argc; i++) {
       context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
     }
@@ -288,7 +291,7 @@ mrb_thread_alive(mrb_state* mrb, mrb_value self) {
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
 
-  return context->mrb != NULL ? mrb_true_value() : mrb_false_value();
+  return context->alive ? mrb_true_value() : mrb_false_value();
 }
 
 static mrb_value
@@ -379,6 +382,7 @@ mrb_queue_init(mrb_state* mrb, mrb_value self) {
   pthread_mutex_init(&context->mutex, NULL);
   context->mrb = mrb;
   context->queue = mrb_ary_new(mrb);
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "queue"), context->queue);
   DATA_PTR(self) = context;
   DATA_TYPE(self) = &mrb_queue_context_type;
   return self;
@@ -416,8 +420,8 @@ static mrb_value
 mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_value arg;
   mrb_queue_context* context = DATA_PTR(self);
-  mrb_get_args(mrb, "o", &arg);
   mrb_queue_lock(mrb, self);
+  mrb_get_args(mrb, "o", &arg);
   mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
   return mrb_nil_value();
