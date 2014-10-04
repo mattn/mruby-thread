@@ -6,7 +6,6 @@ th = Thread.new(v, m) do |v, m|
   for num in 1..3 do
     m.synchronize do
       puts "thread: num = #{num}"
-      m.unlock
     end
     Thread.sleep 1
   end
