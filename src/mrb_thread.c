@@ -66,6 +66,7 @@ static const struct mrb_data_type mrb_mutex_context_type = {
 
 typedef struct {
   pthread_mutex_t mutex;
+  mrb_state* mrb;
   mrb_value queue;
 } mrb_queue_context;
 
@@ -376,6 +377,7 @@ static mrb_value
 mrb_queue_init(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = (mrb_queue_context*) malloc(sizeof(mrb_queue_context));
   pthread_mutex_init(&context->mutex, NULL);
+  context->mrb = mrb;
   context->queue = mrb_ary_new(mrb);
   DATA_PTR(self) = context;
   DATA_TYPE(self) = &mrb_queue_context_type;
@@ -416,7 +418,7 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = DATA_PTR(self);
   mrb_get_args(mrb, "o", &arg);
   mrb_queue_lock(mrb, self);
-  mrb_ary_push(mrb, context->queue, arg);
+  mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
   return mrb_nil_value();
 }
@@ -426,7 +428,7 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
   mrb_value ret;
   mrb_queue_context* context = DATA_PTR(self);
   mrb_queue_lock(mrb, self);
-  ret = mrb_ary_pop(mrb, context->queue);
+  ret = migrate_simple_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
   return ret;
 }
