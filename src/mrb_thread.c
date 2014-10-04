@@ -432,6 +432,7 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
   mrb_value ret;
   mrb_queue_context* context = DATA_PTR(self);
   mrb_queue_lock(mrb, self);
+  /* TODO: lock */
   ret = migrate_simple_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
   return ret;
