@@ -224,7 +224,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     int i, l;
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
     context->mrb_caller = mrb;
-    context->mrb = mrb_open();
+    context->mrb = mrb_open_allocf(mrb->allocf, mrb->allocf_ud);
     context->proc = mrb_proc_new(mrb, mrb_proc_ptr(proc)->body.irep);
     context->proc->target_class = context->mrb->object_class;
     context->argc = argc;
