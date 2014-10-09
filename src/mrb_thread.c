@@ -67,6 +67,7 @@ static const struct mrb_data_type mrb_mutex_context_type = {
 
 typedef struct {
   pthread_mutex_t mutex;
+  pthread_mutex_t queue_lock;
   mrb_state* mrb;
   mrb_value queue;
 } mrb_queue_context;
@@ -76,6 +77,7 @@ mrb_queue_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_queue_context* context = (mrb_queue_context*) p;
     pthread_mutex_destroy(&context->mutex);
+    pthread_mutex_destroy(&context->queue_lock);
     free(p);
   }
 }
@@ -380,6 +382,10 @@ static mrb_value
 mrb_queue_init(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = (mrb_queue_context*) malloc(sizeof(mrb_queue_context));
   pthread_mutex_init(&context->mutex, NULL);
+  pthread_mutex_init(&context->queue_lock, NULL);
+  if (pthread_mutex_lock(&context->queue_lock) != 0) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
+  }
   context->mrb = mrb;
   context->queue = mrb_ary_new(mrb);
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "queue"), context->queue);
@@ -423,6 +429,9 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_queue_lock(mrb, self);
   mrb_get_args(mrb, "o", &arg);
   mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  if (pthread_mutex_unlock(&context->queue_lock) != 0) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
+  }
   mrb_queue_unlock(mrb, self);
   return mrb_nil_value();
 }
@@ -431,8 +440,16 @@ static mrb_value
 mrb_queue_pop(mrb_state* mrb, mrb_value self) {
   mrb_value ret;
   mrb_queue_context* context = DATA_PTR(self);
+  int len;
   mrb_queue_lock(mrb, self);
-  /* TODO: lock */
+  len = RARRAY_LEN(context->queue);
+  mrb_queue_unlock(mrb, self);
+  if (len == 0) {
+    if (pthread_mutex_lock(&context->queue_lock) != 0) {
+      mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
+    }
+  }
+  mrb_queue_lock(mrb, self);
   ret = migrate_simple_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
   return ret;
@@ -440,7 +457,7 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_queue_num_waiting(mrb_state* mrb, mrb_value self) {
-  /* TODO */
+  /* TODO: multiple waiting */
   return mrb_fixnum_value(0);
 }
 
