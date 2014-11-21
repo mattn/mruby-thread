@@ -219,7 +219,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_int argc;
   mrb_value* argv;
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
-  if (MRB_PROC_CFUNC_P(mrb_proc_ptr(proc))) {
+  if (!mrb_nil_p(proc) && MRB_PROC_CFUNC_P(mrb_proc_ptr(proc))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "forking C defined block");
   }
   if (!mrb_nil_p(proc)) {
