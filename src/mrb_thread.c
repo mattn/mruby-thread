@@ -97,6 +97,15 @@ migrate_sym(mrb_state *mrb, mrb_sym sym, mrb_state *mrb2)
 }
 
 static void
+migrate_all_symbols(mrb_state *mrb, mrb_state *mrb2)
+{
+  mrb_sym i;
+  for (i = 1; i < mrb->symidx + 1; i++) {
+    migrate_sym(mrb, i, mrb2);
+  }
+}
+
+static void
 migrate_simple_iv(mrb_state *mrb, mrb_value v, mrb_state *mrb2, mrb_value v2)
 {
   mrb_value ivars = mrb_obj_instance_variables(mrb, v);
@@ -314,6 +323,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
     context->mrb_caller = mrb;
     context->mrb = mrb_open_allocf(mrb->allocf, mrb->allocf_ud);
+    migrate_all_symbols(mrb, context->mrb);
     context->proc = mrb_proc_new(mrb, mrb_proc_ptr(proc)->body.irep);
     context->proc->target_class = context->mrb->object_class;
     context->argc = argc;
