@@ -112,6 +112,91 @@ migrate_simple_iv(mrb_state *mrb, mrb_value v, mrb_state *mrb2, mrb_value v2)
   }
 }
 
+static mrb_bool
+is_safe_migratable_datatype(const mrb_data_type *type)
+{
+  static const char *known_type_names[] = {
+    "mrb_mutex_context",
+    "mrb_queue_context",
+    NULL
+  };
+  int i;
+  for (i = 0; known_type_names[i]; i++) {
+    if (strcmp(type->struct_name, known_type_names[i]) == 0)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+static mrb_bool
+is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
+{
+  switch (mrb_type(v)) {
+  case MRB_TT_OBJECT:
+  case MRB_TT_EXCEPTION:
+    {
+      struct RObject *o = mrb_obj_ptr(v);
+      mrb_value path = mrb_class_path(mrb, o->c);
+
+      if (mrb_nil_p(path) || !mrb_class_defined(mrb2, RSTRING_PTR(path))) {
+        return FALSE;
+      }
+    }
+    break;
+  case MRB_TT_FALSE:
+  case MRB_TT_TRUE:
+  case MRB_TT_FIXNUM:
+  case MRB_TT_SYMBOL:
+  case MRB_TT_FLOAT:
+  case MRB_TT_STRING:
+    break;
+  case MRB_TT_RANGE:
+    {
+      struct RRange *r = mrb_range_ptr(v);
+      if (!is_safe_migratable_simple_value(mrb, r->edges->beg, mrb2) ||
+          !is_safe_migratable_simple_value(mrb, r->edges->end, mrb2)) {
+        return FALSE;
+      }
+    }
+    break;
+  case MRB_TT_ARRAY:
+    {
+      struct RArray *a0;
+      int i;
+      a0 = mrb_ary_ptr(v);
+      for (i=0; i<a0->len; i++) {
+        if (!is_safe_migratable_simple_value(mrb, a0->ptr[i], mrb2)) {
+          return FALSE;
+        }
+      }
+    }
+    break;
+  case MRB_TT_HASH:
+    {
+      mrb_value ka;
+      int i, l;
+      ka = mrb_hash_keys(mrb, v);
+      l = RARRAY_LEN(ka);
+      for (i = 0; i < l; i++) {
+        mrb_value k = mrb_ary_entry(ka, i);
+        if (!is_safe_migratable_simple_value(mrb, k, mrb2) ||
+            !is_safe_migratable_simple_value(mrb, mrb_hash_get(mrb, v, k), mrb2)) {
+          return FALSE;
+        }
+      }
+    }
+    break;
+  case MRB_TT_DATA:
+    if (!is_safe_migratable_datatype(DATA_TYPE(v)))
+      return FALSE;
+    break;
+  default:
+    return FALSE;
+    break;
+  }
+  return TRUE;
+}
+
 // based on https://gist.github.com/3066997
 static mrb_value
 migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
@@ -191,6 +276,8 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_DATA:
+    if (!is_safe_migratable_datatype(DATA_TYPE(v)))
+      mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     nv = v;
     DATA_PTR(nv) = DATA_PTR(v);
     DATA_TYPE(nv) = DATA_TYPE(v);
@@ -245,10 +332,12 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
         int ai = mrb_gc_arena_save(mrb);
         mrb_value k = mrb_ary_entry(gv, i);
         mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
-        const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
-        mrb_gv_set(context->mrb,
-          mrb_intern_static(context->mrb, p, len),
-          migrate_simple_value(mrb, o, context->mrb));
+        if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
+          const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
+          mrb_gv_set(context->mrb,
+            mrb_intern_static(context->mrb, p, len),
+            migrate_simple_value(mrb, o, context->mrb));
+        }
         mrb_gc_arena_restore(mrb, ai);
       }
     }
