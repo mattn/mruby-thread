@@ -37,7 +37,8 @@ static void
 mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
-    if (context->mrb) mrb_close(context->mrb);
+    if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
+    pthread_kill(context->thread, 0);
     if (context->argv) free(context->argv);
     free(p);
   }
@@ -379,8 +380,10 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
   mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
   mrb_thread_context* context = NULL;
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
+  if (context->mrb == NULL) {
+    return mrb_nil_value();
+  }
   pthread_kill(context->thread, 0);
-
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
