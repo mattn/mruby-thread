@@ -62,8 +62,8 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     {
       struct RString *str = mrb_str_ptr(v);
 
-      s = str->ptr;
-      len = str->len;
+      s = RSTR_PTR(str);
+      len = RSTR_LEN(str);
       nv = mrb_str_new(mrb2, s, len);
     }
     break;
@@ -111,7 +111,7 @@ static void*
 mrb_thread_func(void* data) {
   mrb_thread_context* context = (mrb_thread_context*) data;
   mrb_state* mrb = context->mrb;
-  struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
+  //struct RProc* np = mrb_proc_new(mrb, context->proc->body.irep);
   context->result = mrb_yield_argv(mrb, mrb_obj_value(context->proc), context->argc, context->argv);
   return NULL;
 }
