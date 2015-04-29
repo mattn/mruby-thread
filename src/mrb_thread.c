@@ -38,7 +38,7 @@ mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
     if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
-    pthread_kill(context->thread, 0);
+    pthread_kill(context->thread, SIGINT);
     if (context->argv) free(context->argv);
     free(p);
   }
@@ -128,6 +128,7 @@ is_safe_migratable_datatype(const mrb_data_type *type)
   static const char *known_type_names[] = {
     "mrb_mutex_context",
     "mrb_queue_context",
+    "IO",
     NULL
   };
   int i;
@@ -286,6 +287,14 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_DATA:
+    {
+      if (!mrb_immediate_p(v)) {
+        struct RBasic *p;
+        p = mrb_obj_alloc(mrb2, mrb_type(v), mrb_obj_class(mrb, v));
+        nv = mrb_obj_value(p);
+        break;
+      }
+    }
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
       mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     nv = v;
@@ -383,7 +392,7 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
-  pthread_kill(context->thread, 0);
+  pthread_kill(context->thread, SIGINT);
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
@@ -595,6 +604,7 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, ARGS_NONE());
   mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, ARGS_NONE());
   mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, ARGS_REQ(1));
+  mrb_define_module_function(mrb, _class_thread, "start", mrb_thread_init, ARGS_REQ(1));
 
   _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_mutex, MRB_TT_DATA);
