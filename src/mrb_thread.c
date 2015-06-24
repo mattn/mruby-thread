@@ -598,37 +598,37 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
 
   _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_thread, MRB_TT_DATA);
-  mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, ARGS_OPT(1));
-  mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, ARGS_NONE());
-  mrb_define_method(mrb, _class_thread, "kill", mrb_thread_kill, ARGS_NONE());
-  mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, ARGS_NONE());
-  mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, ARGS_NONE());
-  mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, ARGS_REQ(1));
-  mrb_define_module_function(mrb, _class_thread, "start", mrb_thread_init, ARGS_REQ(1));
+  mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, MRB_ARGS_OPT(1));
+  mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "kill", mrb_thread_kill, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, MRB_ARGS_NONE());
+  mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, MRB_ARGS_REQ(1));
+  mrb_define_module_function(mrb, _class_thread, "start", mrb_thread_init, MRB_ARGS_REQ(1));
 
   _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_mutex, MRB_TT_DATA);
-  mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "lock", mrb_mutex_lock, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "try_lock", mrb_mutex_try_lock, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "locked?", mrb_mutex_locked, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "sleep", mrb_mutex_sleep, ARGS_REQ(1));
-  mrb_define_method(mrb, _class_mutex, "synchronize", mrb_mutex_synchronize, ARGS_REQ(1));
-  mrb_define_method(mrb, _class_mutex, "unlock", mrb_mutex_unlock, ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "lock", mrb_mutex_lock, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "try_lock", mrb_mutex_try_lock, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "locked?", mrb_mutex_locked, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "sleep", mrb_mutex_sleep, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, _class_mutex, "synchronize", mrb_mutex_synchronize, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, _class_mutex, "unlock", mrb_mutex_unlock, MRB_ARGS_NONE());
 
   _class_queue = mrb_define_class(mrb, "Queue", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_queue, MRB_TT_DATA);
-  mrb_define_method(mrb, _class_queue, "initialize", mrb_queue_init, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "initialize", mrb_queue_init, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, MRB_ARGS_NONE());
   mrb_define_alias(mrb, _class_queue, "<<", "push");
   mrb_define_alias(mrb, _class_queue, "enq", "push");
-  mrb_define_method(mrb, _class_queue, "pop", mrb_queue_pop, ARGS_OPT(1));
+  mrb_define_method(mrb, _class_queue, "pop", mrb_queue_pop, MRB_ARGS_OPT(1));
   mrb_define_alias(mrb, _class_queue, "deq", "pop");
   mrb_define_alias(mrb, _class_queue, "shift", "pop");
-  mrb_define_method(mrb, _class_queue, "size", mrb_queue_size, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "num_waiting", mrb_queue_num_waiting, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "empty?", mrb_queue_empty_p, ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "size", mrb_queue_size, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "num_waiting", mrb_queue_num_waiting, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "empty?", mrb_queue_empty_p, MRB_ARGS_NONE());
 }
 
 void
