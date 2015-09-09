@@ -287,6 +287,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_DATA:
+#ifdef _WIN32
     {
       if (!mrb_immediate_p(v)) {
         struct RBasic *p;
@@ -295,6 +296,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
         break;
       }
     }
+#endif
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
       mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     nv = v;
