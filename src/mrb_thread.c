@@ -287,14 +287,6 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_DATA:
-    {
-      if (!mrb_immediate_p(v)) {
-        struct RBasic *p;
-        p = mrb_obj_alloc(mrb2, mrb_type(v), mrb_obj_class(mrb, v));
-        nv = mrb_obj_value(p);
-        break;
-      }
-    }
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
       mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     nv = v;
@@ -540,10 +532,10 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_queue_lock(mrb, self);
   mrb_get_args(mrb, "o", &arg);
   mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  mrb_queue_unlock(mrb, self);
   if (pthread_mutex_unlock(&context->queue_lock) != 0) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
   }
-  mrb_queue_unlock(mrb, self);
   return mrb_nil_value();
 }
 
