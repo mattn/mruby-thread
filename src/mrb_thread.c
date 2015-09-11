@@ -559,6 +559,39 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
 }
 
 static mrb_value
+mrb_queue_unshift(mrb_state* mrb, mrb_value self) {
+  mrb_value arg;
+  mrb_queue_context* context = DATA_PTR(self);
+  mrb_queue_lock(mrb, self);
+  mrb_get_args(mrb, "o", &arg);
+  mrb_ary_unshift(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  mrb_queue_unlock(mrb, self);
+  if (pthread_mutex_unlock(&context->queue_lock) != 0) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
+  }
+  return mrb_nil_value();
+}
+
+static mrb_value
+mrb_queue_shift(mrb_state* mrb, mrb_value self) {
+  mrb_value ret;
+  mrb_queue_context* context = DATA_PTR(self);
+  int len;
+  mrb_queue_lock(mrb, self);
+  len = RARRAY_LEN(context->queue);
+  mrb_queue_unlock(mrb, self);
+  if (len == 0) {
+    if (pthread_mutex_lock(&context->queue_lock) != 0) {
+      mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
+    }
+  }
+  mrb_queue_lock(mrb, self);
+  ret = migrate_simple_value(context->mrb, mrb_ary_shift(context->mrb, context->queue), mrb);
+  mrb_queue_unlock(mrb, self);
+  return ret;
+}
+
+static mrb_value
 mrb_queue_num_waiting(mrb_state* mrb, mrb_value self) {
   /* TODO: multiple waiting */
   return mrb_fixnum_value(0);
@@ -614,10 +647,11 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, MRB_ARGS_NONE());
   mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, MRB_ARGS_NONE());
   mrb_define_alias(mrb, _class_queue, "<<", "push");
-  mrb_define_alias(mrb, _class_queue, "enq", "push");
+  mrb_define_method(mrb, _class_queue, "unshift", mrb_queue_unshift, MRB_ARGS_NONE());
+  mrb_define_alias(mrb, _class_queue, "enq", "unshift");
   mrb_define_method(mrb, _class_queue, "pop", mrb_queue_pop, MRB_ARGS_OPT(1));
   mrb_define_alias(mrb, _class_queue, "deq", "pop");
-  mrb_define_alias(mrb, _class_queue, "shift", "pop");
+  mrb_define_method(mrb, _class_queue, "shift", mrb_queue_shift, MRB_ARGS_OPT(1));
   mrb_define_method(mrb, _class_queue, "size", mrb_queue_size, MRB_ARGS_NONE());
   mrb_define_method(mrb, _class_queue, "num_waiting", mrb_queue_num_waiting, MRB_ARGS_NONE());
   mrb_define_method(mrb, _class_queue, "empty?", mrb_queue_empty_p, MRB_ARGS_NONE());
