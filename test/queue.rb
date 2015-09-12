@@ -5,7 +5,7 @@ assert('Object.const_defined? :Queue') do
   Object.const_defined?(:Queue)
 end
 
-assert('Queue#empty? ') do
+assert('Queue#empty?') do
   q = Queue.new
   assert_equal q.empty?, true
 end
@@ -55,5 +55,4 @@ assert('Queue#size') do
   q.deq
   assert_equal q.size, 0
 end
-
 
