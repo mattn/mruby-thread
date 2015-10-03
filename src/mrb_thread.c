@@ -471,14 +471,15 @@ mrb_mutex_sleep(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_mutex_synchronize(mrb_state* mrb, mrb_value self) {
+  mrb_value ret = mrb_nil_value();
   mrb_value proc = mrb_nil_value();
   mrb_get_args(mrb, "&", &proc);
   if (!mrb_nil_p(proc)) {
     mrb_mutex_lock(mrb, self);
-    mrb_yield_argv(mrb, proc, 0, NULL);
+    ret = mrb_yield_argv(mrb, proc, 0, NULL);
     mrb_mutex_unlock(mrb, self);
   }
-  return mrb_nil_value();
+  return ret;
 }
 
 static mrb_value
