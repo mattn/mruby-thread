@@ -15,6 +15,7 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#define _TIMESPEC_DEFINED
 #endif
 #include <ctype.h>
 #include <pthread.h>
