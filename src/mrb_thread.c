@@ -15,6 +15,7 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#define _TIMESPEC_DEFINED
 #endif
 #include <ctype.h>
 #include <pthread.h>
@@ -38,7 +39,7 @@ mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
     if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
-    pthread_kill(context->thread, 0);
+    pthread_kill(context->thread, SIGINT);
     if (context->argv) free(context->argv);
     free(p);
   }
@@ -128,6 +129,7 @@ is_safe_migratable_datatype(const mrb_data_type *type)
   static const char *known_type_names[] = {
     "mrb_mutex_context",
     "mrb_queue_context",
+    "IO",
     NULL
   };
   int i;
@@ -383,7 +385,7 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
-  pthread_kill(context->thread, 0);
+  pthread_kill(context->thread, SIGINT);
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
@@ -470,14 +472,15 @@ mrb_mutex_sleep(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_mutex_synchronize(mrb_state* mrb, mrb_value self) {
+  mrb_value ret = mrb_nil_value();
   mrb_value proc = mrb_nil_value();
   mrb_get_args(mrb, "&", &proc);
   if (!mrb_nil_p(proc)) {
     mrb_mutex_lock(mrb, self);
-    mrb_yield_argv(mrb, proc, 0, NULL);
+    ret = mrb_yield_argv(mrb, proc, 0, NULL);
     mrb_mutex_unlock(mrb, self);
   }
-  return mrb_nil_value();
+  return ret;
 }
 
 static mrb_value
@@ -531,10 +534,10 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_queue_lock(mrb, self);
   mrb_get_args(mrb, "o", &arg);
   mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  mrb_queue_unlock(mrb, self);
   if (pthread_mutex_unlock(&context->queue_lock) != 0) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
   }
-  mrb_queue_unlock(mrb, self);
   return mrb_nil_value();
 }
 
@@ -553,6 +556,39 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
   }
   mrb_queue_lock(mrb, self);
   ret = migrate_simple_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
+  mrb_queue_unlock(mrb, self);
+  return ret;
+}
+
+static mrb_value
+mrb_queue_unshift(mrb_state* mrb, mrb_value self) {
+  mrb_value arg;
+  mrb_queue_context* context = DATA_PTR(self);
+  mrb_queue_lock(mrb, self);
+  mrb_get_args(mrb, "o", &arg);
+  mrb_ary_unshift(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  mrb_queue_unlock(mrb, self);
+  if (pthread_mutex_unlock(&context->queue_lock) != 0) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
+  }
+  return mrb_nil_value();
+}
+
+static mrb_value
+mrb_queue_shift(mrb_state* mrb, mrb_value self) {
+  mrb_value ret;
+  mrb_queue_context* context = DATA_PTR(self);
+  int len;
+  mrb_queue_lock(mrb, self);
+  len = RARRAY_LEN(context->queue);
+  mrb_queue_unlock(mrb, self);
+  if (len == 0) {
+    if (pthread_mutex_lock(&context->queue_lock) != 0) {
+      mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
+    }
+  }
+  mrb_queue_lock(mrb, self);
+  ret = migrate_simple_value(context->mrb, mrb_ary_shift(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
   return ret;
 }
@@ -589,36 +625,38 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
 
   _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_thread, MRB_TT_DATA);
-  mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, ARGS_OPT(1));
-  mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, ARGS_NONE());
-  mrb_define_method(mrb, _class_thread, "kill", mrb_thread_kill, ARGS_NONE());
-  mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, ARGS_NONE());
-  mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, ARGS_NONE());
-  mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, ARGS_REQ(1));
+  mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, MRB_ARGS_OPT(1));
+  mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "kill", mrb_thread_kill, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, MRB_ARGS_NONE());
+  mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, MRB_ARGS_REQ(1));
+  mrb_define_module_function(mrb, _class_thread, "start", mrb_thread_init, MRB_ARGS_REQ(1));
 
   _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_mutex, MRB_TT_DATA);
-  mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "lock", mrb_mutex_lock, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "try_lock", mrb_mutex_try_lock, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "locked?", mrb_mutex_locked, ARGS_NONE());
-  mrb_define_method(mrb, _class_mutex, "sleep", mrb_mutex_sleep, ARGS_REQ(1));
-  mrb_define_method(mrb, _class_mutex, "synchronize", mrb_mutex_synchronize, ARGS_REQ(1));
-  mrb_define_method(mrb, _class_mutex, "unlock", mrb_mutex_unlock, ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "initialize", mrb_mutex_init, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "lock", mrb_mutex_lock, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "try_lock", mrb_mutex_try_lock, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "locked?", mrb_mutex_locked, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_mutex, "sleep", mrb_mutex_sleep, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, _class_mutex, "synchronize", mrb_mutex_synchronize, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, _class_mutex, "unlock", mrb_mutex_unlock, MRB_ARGS_NONE());
 
   _class_queue = mrb_define_class(mrb, "Queue", mrb->object_class);
   MRB_SET_INSTANCE_TT(_class_queue, MRB_TT_DATA);
-  mrb_define_method(mrb, _class_queue, "initialize", mrb_queue_init, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "initialize", mrb_queue_init, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, MRB_ARGS_NONE());
   mrb_define_alias(mrb, _class_queue, "<<", "push");
-  mrb_define_alias(mrb, _class_queue, "enq", "push");
-  mrb_define_method(mrb, _class_queue, "pop", mrb_queue_pop, ARGS_OPT(1));
+  mrb_define_method(mrb, _class_queue, "unshift", mrb_queue_unshift, MRB_ARGS_NONE());
+  mrb_define_alias(mrb, _class_queue, "enq", "unshift");
+  mrb_define_method(mrb, _class_queue, "pop", mrb_queue_pop, MRB_ARGS_OPT(1));
   mrb_define_alias(mrb, _class_queue, "deq", "pop");
-  mrb_define_alias(mrb, _class_queue, "shift", "pop");
-  mrb_define_method(mrb, _class_queue, "size", mrb_queue_size, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "num_waiting", mrb_queue_num_waiting, ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "empty?", mrb_queue_empty_p, ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "shift", mrb_queue_shift, MRB_ARGS_OPT(1));
+  mrb_define_method(mrb, _class_queue, "size", mrb_queue_size, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "num_waiting", mrb_queue_num_waiting, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "empty?", mrb_queue_empty_p, MRB_ARGS_NONE());
 }
 
 void

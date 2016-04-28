@@ -10,7 +10,7 @@ assert('Thread returns Fixnum') do
   a.join == 100
 end
 
-assert('Thread returns ture') do
+assert('Thread returns true') do
   a = Thread.new{true}
   a.join == true
 end
