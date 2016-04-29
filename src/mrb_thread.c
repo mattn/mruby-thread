@@ -215,23 +215,10 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   mrb_value nv;
 
   switch (mrb_type(v)) {
+#ifdef MRB_THREAD_COPY_VALUES
   case MRB_TT_OBJECT:
   case MRB_TT_EXCEPTION:
     {
-      /* Original code follows. It raises: 
-             "TypeError: wrong argument type NameError (expected Class)"
-         when the passed object is a custom class inheriting from Object
-      
-      struct RObject *o = mrb_obj_ptr(v);
-      mrb_value path = mrb_class_path(mrb, o->c);
-      struct RClass *c;
-
-      if (mrb_nil_p(path)) {
-        mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate class");
-      }
-      c = mrb_class_get(mrb2, RSTRING_PTR(path));
-      
-      */
       struct RClass *c = mrb_obj_class(mrb, v);
       nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
     }
@@ -294,6 +281,21 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     }
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
+#else
+    case MRB_TT_OBJECT:
+    case MRB_TT_EXCEPTION:
+    case MRB_TT_FALSE:
+    case MRB_TT_TRUE:
+    case MRB_TT_FIXNUM:
+    case MRB_TT_SYMBOL:
+    case MRB_TT_FLOAT:
+    case MRB_TT_STRING:
+    case MRB_TT_RANGE:
+    case MRB_TT_ARRAY:
+    case MRB_TT_HASH:
+      nv = v;
+      break;
+#endif
   case MRB_TT_DATA:
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
       mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
