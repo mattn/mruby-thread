@@ -8,16 +8,19 @@ end
 
 $mutex = Mutex.new
 $queue = MyContainer.new(1)
+$ary = []
 
-svr = Thread.new($queue, $mutex) do |q, m|
+svr = Thread.new($queue, $mutex, $ary) do |q, m, a|
   20.times do |i|
     q.data = q.data + 1
-    Thread.sleep 1
+    a << q.data
+    a.shift if a.size > 3
+    Thread.sleep 2
   end
 end
 
 while true do
-  puts "count = #{$queue.data}"
+  puts "count = #{$queue.data}, ary = #{$ary}"
   if $queue.data > 10 then
     svr.kill
     break
