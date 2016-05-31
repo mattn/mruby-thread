@@ -1,6 +1,8 @@
+BUILD_SCRIPT = ./test_build.rb
+
 .PHONY : test
 test:
-	ruby ./run_test.rb test
+	ruby ${BUILD_SCRIPT} test
 
 .PHONY : all
 all:
@@ -8,4 +10,4 @@ all:
 
 .PHONY : clean
 clean:
-	ruby ./run_test.rb clean
+	ruby ${BUILD_SCRIPT} clean
