@@ -23,6 +23,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
+For backward compatibility.
+See also https://github.com/mruby/mruby/commit/79a621dd739faf4cc0958e11d6a887331cf79e48
+*/
+#ifdef mrb_range_ptr
+#define MRB_RANGE_PTR(v) mrb_range_ptr(v)
+#else
+#define MRB_RANGE_PTR(v) mrb_range_ptr(mrb, v)
+#endif
+
 typedef struct {
   int argc;
   mrb_value* argv;
@@ -164,7 +174,7 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
     break;
   case MRB_TT_RANGE:
     {
-      struct RRange *r = mrb_range_ptr(v);
+      struct RRange *r = MRB_RANGE_PTR(v);
       if (!is_safe_migratable_simple_value(mrb, r->edges->beg, mrb2) ||
           !is_safe_migratable_simple_value(mrb, r->edges->end, mrb2)) {
         return FALSE;
@@ -240,7 +250,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     break;
   case MRB_TT_RANGE:
     {
-      struct RRange *r = mrb_range_ptr(v);
+      struct RRange *r = MRB_RANGE_PTR(v);
       nv = mrb_range_new(mrb2,
                          migrate_simple_value(mrb, r->edges->beg, mrb2),
                          migrate_simple_value(mrb, r->edges->end, mrb2),
