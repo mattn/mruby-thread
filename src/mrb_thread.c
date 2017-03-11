@@ -165,6 +165,7 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
       }
     }
     break;
+  case MRB_TT_PROC:
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
@@ -234,6 +235,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     }
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
+  case MRB_TT_PROC:
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
@@ -294,6 +296,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
 #else
     case MRB_TT_OBJECT:
     case MRB_TT_EXCEPTION:
+    case MRB_TT_PROC:
     case MRB_TT_FALSE:
     case MRB_TT_TRUE:
     case MRB_TT_FIXNUM:

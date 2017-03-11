@@ -86,3 +86,10 @@ assert('Thread migrates Hash') do
   a = Thread.new({'abc_key' => 'abc_value', 'cba_key' => 'cba_value'}){|a| a}
   a.join == {'abc_key' => 'abc_value', 'cba_key' => 'cba_value'}
 end
+
+assert('Thread migrates Proc') do
+  pr = Proc.new { 1 }
+  a = Thread.new(pr){|pr| pr.call }
+  a.join == 1
+end
+
