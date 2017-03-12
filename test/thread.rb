@@ -78,11 +78,13 @@ assert('Thread migrates Symbol') do
 end
 
 assert('Thread migrates Array') do
+  skip "skip because COPY_VALUES is disabled" unless Thread::COPY_VALUES
   a = Thread.new([1,2,3]){|a| a}
   a.join == [1,2,3]
 end
 
 assert('Thread migrates Hash') do
+  skip "skip because COPY_VALUES is disabled" unless Thread::COPY_VALUES
   a = Thread.new({'abc_key' => 'abc_value', 'cba_key' => 'cba_value'}){|a| a}
   a.join == {'abc_key' => 'abc_value', 'cba_key' => 'cba_value'}
 end

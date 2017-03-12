@@ -646,6 +646,11 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   struct RClass *_class_thread, *_class_mutex, *_class_queue;
 
   _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
+#ifdef MRB_THREAD_COPY_VALUES
+  mrb_define_const(mrb, _class_thread, "COPY_VALUES", mrb_true_value());
+#else
+  mrb_define_const(mrb, _class_thread, "COPY_VALUES", mrb_false_value());
+#endif
   MRB_SET_INSTANCE_TT(_class_thread, MRB_TT_DATA);
   mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, MRB_ARGS_OPT(1));
   mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, MRB_ARGS_NONE());
