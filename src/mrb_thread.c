@@ -8,6 +8,7 @@
 #include <mruby/class.h>
 #include <mruby/value.h>
 #include <mruby/variable.h>
+#include <mruby/dump.h>
 #include <string.h>
 #ifndef _MSC_VER
 #include <strings.h>
@@ -220,6 +221,29 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
   return TRUE;
 }
 
+static mrb_irep*
+migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
+  uint8_t *irep = NULL;
+  size_t binsize = 0;
+  int i;
+  mrb_dump_irep(mrb, src, DUMP_ENDIAN_NAT, &irep, &binsize);
+
+  mrb_irep *ret = mrb_read_irep(mrb2, irep);
+  for (i = 0; i < src->slen; i++) {
+    mrb_sym newsym = migrate_sym(mrb, src->syms[i], mrb2);
+    ret->syms[i] = newsym;
+  }
+  return ret;
+}
+
+struct RProc*
+migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
+  struct RProc *newproc = mrb_closure_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
+  newproc->env = rproc->env;
+  newproc->env->mid = migrate_sym(mrb, rproc->env->mid, mrb2);
+  return newproc;
+}
+
 // based on https://gist.github.com/3066997
 static mrb_value
 migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
@@ -236,6 +260,11 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_PROC:
+    {
+      struct RProc *rproc = mrb_proc_ptr(v);
+      nv = mrb_obj_value(migrate_rproc(mrb, rproc, mrb2));
+    }
+    break;
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
@@ -403,8 +432,12 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
     context->mrb_caller = mrb;
     mrb_state* mrb2 = mrb_symbol_safe_copy(mrb);
+    if(!mrb2) {
+      mrb_raise(mrb, E_RUNTIME_ERROR, "copying mrb_state failed");
+    }
     context->mrb = mrb2;
-    context->proc = mrb_proc_new(mrb, mrb_proc_ptr(proc)->body.irep);
+    struct RProc *rproc = mrb_proc_ptr(proc);
+    context->proc = migrate_rproc(mrb, rproc, mrb2);
     context->proc->target_class = context->mrb->object_class;
     context->argc = argc;
     context->argv = calloc(sizeof (mrb_value), context->argc);
