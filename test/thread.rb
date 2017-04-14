@@ -75,6 +75,12 @@ assert('Thread migrates Symbol') do
   assert_true a.join == :context
 end
 
+assert('Thread migrates Symbol in a complex context') do
+  a = :cxt1
+  t = Thread.new(:cxt2){|b| [a, b, :ctx3] }
+  assert_equal [:cxt1, :cxt2, :ctx3], t.join
+end
+
 assert('Thread migrates Array') do
   skip "skip because COPY_VALUES is disabled" unless Thread::COPY_VALUES
   a = Thread.new([1,2,3]){|a| a}
@@ -91,4 +97,24 @@ assert('Thread migrates Proc') do
   pr = Proc.new { 1 }
   a = Thread.new(pr){|pr| pr.call }
   a.join == 1
+end
+
+class DummyObj
+  attr_accessor :foo, :bar, :buz
+end
+
+assert('Thread migrates Object') do
+  a = DummyObj.new
+  t = Thread.new(a) do |a|
+    a.foo = "foo"
+    a.bar = 123
+    a.buz = :buz
+    a
+  end
+  a = t.join
+
+  assert_equal DummyObj, a.class
+  assert_equal "foo",    a.foo
+  assert_equal 123,      a.bar
+  assert_equal :buz,     a.buz
 end
