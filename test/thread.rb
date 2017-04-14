@@ -31,9 +31,8 @@ assert('Thread returns String') do
 end
 
 assert('Thread returns Symbol') do
-#  a = Thread.new{:context}
-#  a.join == :context
-  true
+  a = Thread.new{:context}
+  assert_true a.join == :context
 end
 
 assert('Thread returns Array') do
@@ -72,9 +71,8 @@ assert('Thread migrates String') do
 end
 
 assert('Thread migrates Symbol') do
-#  a = Thread.new(:context){|a| a}
-#  a.join == :context
-  true
+  a = Thread.new(:context){|a| a}
+  assert_true a.join == :context
 end
 
 assert('Thread migrates Array') do
@@ -94,4 +92,3 @@ assert('Thread migrates Proc') do
   a = Thread.new(pr){|pr| pr.call }
   a.join == 1
 end
-
