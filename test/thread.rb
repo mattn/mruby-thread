@@ -31,9 +31,8 @@ assert('Thread returns String') do
 end
 
 assert('Thread returns Symbol') do
-#  a = Thread.new{:context}
-#  a.join == :context
-  true
+  a = Thread.new{:context}
+  assert_true a.join == :context
 end
 
 assert('Thread returns Array') do
@@ -72,9 +71,14 @@ assert('Thread migrates String') do
 end
 
 assert('Thread migrates Symbol') do
-#  a = Thread.new(:context){|a| a}
-#  a.join == :context
-  true
+  a = Thread.new(:context){|a| a}
+  assert_true a.join == :context
+end
+
+assert('Thread migrates Symbol in a complex context') do
+  a = :cxt1
+  t = Thread.new(:cxt2){|b| [a, b, :ctx3] }
+  assert_equal [:cxt1, :cxt2, :ctx3], t.join
 end
 
 assert('Thread migrates Array') do
@@ -95,3 +99,29 @@ assert('Thread migrates Proc') do
   a.join == 1
 end
 
+class DummyObj
+  attr_accessor :foo, :bar, :buz
+end
+
+assert('Thread migrates Object') do
+  a = DummyObj.new
+  t = Thread.new(a) do |a|
+    a.foo = "foo"
+    a.bar = 123
+    a.buz = :buz
+    a
+  end
+  a = t.join
+
+  assert_equal DummyObj, a.class
+  assert_equal "foo",    a.foo
+  assert_equal 123,      a.bar
+  assert_equal :buz,     a.buz
+end
+
+assert('Fixed test of issue #36') do
+  a = Thread.new do
+    "".is_a?(String)
+  end
+  assert_true a.join
+end

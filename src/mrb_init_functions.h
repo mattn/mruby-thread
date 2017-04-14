@@ -1,0 +1,21 @@
+void mrb_init_symtbl(mrb_state *);
+void mrb_init_class(mrb_state *);
+void mrb_init_object(mrb_state *);
+void mrb_init_kernel(mrb_state *);
+void mrb_init_comparable(mrb_state *);
+void mrb_init_enumerable(mrb_state *);
+void mrb_init_symbol(mrb_state *);
+void mrb_init_exception(mrb_state *);
+void mrb_init_proc(mrb_state *);
+void mrb_init_string(mrb_state *);
+void mrb_init_array(mrb_state *);
+void mrb_init_hash(mrb_state *);
+void mrb_init_numeric(mrb_state *);
+void mrb_init_range(mrb_state *);
+void mrb_init_gc(mrb_state *);
+void mrb_init_math(mrb_state *);
+void mrb_init_version(mrb_state *);
+void mrb_init_mrblib(mrb_state *);
+
+void mrb_init_mrbgems(mrb_state *);
+void mrb_gc_init(mrb_state *, mrb_gc *gc);
