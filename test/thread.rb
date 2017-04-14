@@ -118,3 +118,10 @@ assert('Thread migrates Object') do
   assert_equal 123,      a.bar
   assert_equal :buz,     a.buz
 end
+
+assert('Fixed test of issue #36') do
+  a = Thread.new do
+    "".is_a?(String)
+  end
+  assert_true a.join
+end
