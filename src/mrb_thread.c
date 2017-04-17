@@ -50,7 +50,7 @@ mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
     if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
-    pthread_kill(context->thread, SIGINT);
+    if (context->alive) pthread_kill(context->thread, SIGINT);
     if (context->argv) free(context->argv);
     free(p);
   }
@@ -495,7 +495,7 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
-  pthread_kill(context->thread, SIGINT);
+  if(context->alive) pthread_kill(context->thread, SIGINT);
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
