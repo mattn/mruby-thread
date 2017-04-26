@@ -240,7 +240,6 @@ struct RProc*
 migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
   struct RProc *newproc = mrb_closure_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
   newproc->env = rproc->env;
-  newproc->env->mid = migrate_sym(mrb, rproc->env->mid, mrb2);
   return newproc;
 }
 
