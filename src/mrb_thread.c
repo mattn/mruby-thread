@@ -126,8 +126,8 @@ migrate_simple_iv(mrb_state *mrb, mrb_value v, mrb_state *mrb2, mrb_value v2)
   mrb_value iv;
   mrb_int i;
 
-  for (i=0; i<a->len; i++) {
-    mrb_sym sym = mrb_symbol(a->ptr[i]);
+  for (i=0; i<ARY_LEN(a); i++) {
+    mrb_sym sym = mrb_symbol(ARY_PTR(a)[i]);
     mrb_sym sym2 = migrate_sym(mrb, sym, mrb2);
     iv = mrb_iv_get(mrb, v, sym);
     mrb_iv_set(mrb2, v2, sym2, migrate_simple_value(mrb, iv, mrb2));
@@ -188,8 +188,8 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
       struct RArray *a0;
       int i;
       a0 = mrb_ary_ptr(v);
-      for (i=0; i<a0->len; i++) {
-        if (!is_safe_migratable_simple_value(mrb, a0->ptr[i], mrb2)) {
+      for (i=0; i<ARY_LEN(a0); i++) {
+        if (!is_safe_migratable_simple_value(mrb, ARY_PTR(a0)[i], mrb2)) {
           return FALSE;
         }
       }
