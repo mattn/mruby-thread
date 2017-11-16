@@ -34,6 +34,17 @@ See also https://github.com/mruby/mruby/commit/79a621dd739faf4cc0958e11d6a887331
 #define MRB_RANGE_PTR(v) mrb_range_ptr(mrb, v)
 #endif
 
+#ifdef MRB_PROC_ENV
+# define _MRB_PROC_ENV(p) (p)->e.env
+#else
+# define _MRB_PROC_ENV(p) (p)->env
+#endif
+
+#ifndef MRB_PROC_SET_TARGET_CLASS
+# define MRB_PROC_SET_TARGET_CLASS(p,tc) \
+  p->target_class = tc
+#endif
+
 typedef struct {
   int argc;
   mrb_value* argv;
@@ -225,10 +236,11 @@ static mrb_irep*
 migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
   uint8_t *irep = NULL;
   size_t binsize = 0;
+  mrb_irep *ret;
   int i;
   mrb_dump_irep(mrb, src, DUMP_ENDIAN_NAT, &irep, &binsize);
 
-  mrb_irep *ret = mrb_read_irep(mrb2, irep);
+  ret = mrb_read_irep(mrb2, irep);
   for (i = 0; i < src->slen; i++) {
     mrb_sym newsym = migrate_sym(mrb, src->syms[i], mrb2);
     ret->syms[i] = newsym;
@@ -239,7 +251,7 @@ migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
 struct RProc*
 migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
   struct RProc *newproc = mrb_closure_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
-  newproc->env = rproc->env;
+  _MRB_PROC_ENV(newproc) = _MRB_PROC_ENV(rproc);
   return newproc;
 }
 
@@ -429,15 +441,18 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   if (!mrb_nil_p(proc)) {
     int i, l;
     mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
+    mrb_state* mrb2;
+    struct RProc *rproc;
+
     context->mrb_caller = mrb;
-    mrb_state* mrb2 = mrb_symbol_safe_copy(mrb);
+    mrb2 = mrb_symbol_safe_copy(mrb);
     if(!mrb2) {
       mrb_raise(mrb, E_RUNTIME_ERROR, "copying mrb_state failed");
     }
     context->mrb = mrb2;
-    struct RProc *rproc = mrb_proc_ptr(proc);
+    rproc = mrb_proc_ptr(proc);
     context->proc = migrate_rproc(mrb, rproc, mrb2);
-    context->proc->target_class = context->mrb->object_class;
+    MRB_PROC_SET_TARGET_CLASS(context->proc, context->mrb->object_class);
     context->argc = argc;
     context->argv = calloc(sizeof (mrb_value), context->argc);
     context->result = mrb_nil_value();
