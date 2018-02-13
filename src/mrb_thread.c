@@ -301,16 +301,13 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     break;
   case MRB_TT_ARRAY:
     {
-      struct RArray *a0, *a1;
-      int i;
+      int i, ai;
 
-      a0 = mrb_ary_ptr(v);
-      nv = mrb_ary_new_capa(mrb2, a0->len);
-      a1 = mrb_ary_ptr(nv);
-      for (i=0; i<a0->len; i++) {
-        int ai = mrb_gc_arena_save(mrb2);
-        a1->ptr[i] = migrate_simple_value(mrb, a0->ptr[i], mrb2);
-        a1->len++;
+      nv = mrb_ary_new_capa(mrb2, RARRAY_LEN(v));
+      mrb_ary_resize(mrb, nv, RARRAY_LEN(v));
+      ai = mrb_gc_arena_save(mrb2);
+      for (i=0; i<RARRAY_LEN(v); i++) {
+        RARRAY_PTR(nv)[i] = migrate_simple_value(mrb, RARRAY_PTR(v)[i], mrb2);
         mrb_gc_arena_restore(mrb2, ai);
       }
     }
