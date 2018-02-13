@@ -370,6 +370,7 @@ mrb_thread_func(void* data) {
   mrb_state* mrb = context->mrb;
   context->result = mrb_yield_with_class(mrb, mrb_obj_value(context->proc),
                                          context->argc, context->argv, mrb_nil_value(), mrb->object_class);
+  mrb_gc_protect(mrb, context->result);
   context->alive = FALSE;
   return NULL;
 }
