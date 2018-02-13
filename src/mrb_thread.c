@@ -250,8 +250,32 @@ migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
 
 struct RProc*
 migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
-  struct RProc *newproc = mrb_closure_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
-  _MRB_PROC_ENV(newproc) = _MRB_PROC_ENV(rproc);
+  struct RProc *newproc = mrb_proc_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
+  struct REnv *newenv;
+
+  if (_MRB_PROC_ENV(rproc)) {
+    mrb_int i, len = MRB_ENV_STACK_LEN(_MRB_PROC_ENV(rproc));
+    newenv = (struct REnv*)mrb_obj_alloc(mrb2, MRB_TT_ENV, mrb2->object_class);
+
+    newenv->stack = mrb_malloc(mrb, sizeof(mrb_value) * len);
+    for (i = 0; i < len; ++i) {
+      mrb_value v = _MRB_PROC_ENV(rproc)->stack[i];
+      if (mrb_obj_ptr(v) == ((struct RObject*)rproc)) {
+        newenv->stack[i] = mrb_obj_value(newproc);
+      } else {
+        newenv->stack[i] = migrate_simple_value(mrb, v, mrb2);
+      }
+    }
+    MRB_ENV_UNSHARE_STACK(newenv);
+    _MRB_PROC_ENV(newproc) = newenv;
+    newproc->flags |= MRB_PROC_ENVSET;
+    if (rproc->upper) {
+      newproc->upper = migrate_rproc(mrb, rproc->upper, mrb2);
+    }
+  }
+
+  mrb_irep_decref(mrb2, newproc->body.irep);
+
   return newproc;
 }
 
