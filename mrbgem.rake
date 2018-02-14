@@ -2,7 +2,8 @@ MRuby::Gem::Specification.new('mruby-thread') do |spec|
   spec.license = 'MIT'
   spec.authors = 'mattn'
 
-  defs = %w[MRB_THREAD_COPY_VALUES MRB_USE_ETEXT_EDATA]
+  defs = %w[MRB_THREAD_COPY_VALUES]
+  defs << %w[MRB_USE_ETEXT_EDATA] if ENV['OS'] != 'Windows_NT'
   build.cc.defines += defs
   spec.cc.defines+= defs
 
