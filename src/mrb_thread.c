@@ -241,6 +241,7 @@ migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
   mrb_dump_irep(mrb, src, DUMP_ENDIAN_NAT, &irep, &binsize);
 
   ret = mrb_read_irep(mrb2, irep);
+  mrb_free(mrb, irep);
   for (i = 0; i < src->slen; i++) {
     mrb_sym newsym = migrate_sym(mrb, src->syms[i], mrb2);
     ret->syms[i] = newsym;
@@ -250,8 +251,32 @@ migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
 
 struct RProc*
 migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
-  struct RProc *newproc = mrb_closure_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
-  _MRB_PROC_ENV(newproc) = _MRB_PROC_ENV(rproc);
+  struct RProc *newproc = mrb_proc_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
+  struct REnv *newenv;
+
+  if (_MRB_PROC_ENV(rproc)) {
+    mrb_int i, len = MRB_ENV_STACK_LEN(_MRB_PROC_ENV(rproc));
+    newenv = (struct REnv*)mrb_obj_alloc(mrb2, MRB_TT_ENV, mrb2->object_class);
+
+    newenv->stack = mrb_malloc(mrb, sizeof(mrb_value) * len);
+    for (i = 0; i < len; ++i) {
+      mrb_value v = _MRB_PROC_ENV(rproc)->stack[i];
+      if (mrb_obj_ptr(v) == ((struct RObject*)rproc)) {
+        newenv->stack[i] = mrb_obj_value(newproc);
+      } else {
+        newenv->stack[i] = migrate_simple_value(mrb, v, mrb2);
+      }
+    }
+    MRB_ENV_UNSHARE_STACK(newenv);
+    _MRB_PROC_ENV(newproc) = newenv;
+    newproc->flags |= MRB_PROC_ENVSET;
+    if (rproc->upper) {
+      newproc->upper = migrate_rproc(mrb, rproc->upper, mrb2);
+    }
+  }
+
+  mrb_irep_decref(mrb2, newproc->body.irep);
+
   return newproc;
 }
 
@@ -301,16 +326,13 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     break;
   case MRB_TT_ARRAY:
     {
-      struct RArray *a0, *a1;
-      int i;
+      int i, ai;
 
-      a0 = mrb_ary_ptr(v);
-      nv = mrb_ary_new_capa(mrb2, a0->len);
-      a1 = mrb_ary_ptr(nv);
-      for (i=0; i<a0->len; i++) {
-        int ai = mrb_gc_arena_save(mrb2);
-        a1->ptr[i] = migrate_simple_value(mrb, a0->ptr[i], mrb2);
-        a1->len++;
+      nv = mrb_ary_new_capa(mrb2, RARRAY_LEN(v));
+      mrb_ary_resize(mrb, nv, RARRAY_LEN(v));
+      ai = mrb_gc_arena_save(mrb2);
+      for (i=0; i<RARRAY_LEN(v); i++) {
+        RARRAY_PTR(nv)[i] = migrate_simple_value(mrb, RARRAY_PTR(v)[i], mrb2);
         mrb_gc_arena_restore(mrb2, ai);
       }
     }
@@ -370,6 +392,7 @@ mrb_thread_func(void* data) {
   mrb_state* mrb = context->mrb;
   context->result = mrb_yield_with_class(mrb, mrb_obj_value(context->proc),
                                          context->argc, context->argv, mrb_nil_value(), mrb->object_class);
+  mrb_gc_protect(mrb, context->result);
   context->alive = FALSE;
   return NULL;
 }
@@ -495,7 +518,7 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
   Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
   pthread_join(context->thread, NULL);
 
-  context->result = migrate_simple_value(mrb, context->result, mrb);
+  context->result = migrate_simple_value(context->mrb, context->result, mrb);
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
