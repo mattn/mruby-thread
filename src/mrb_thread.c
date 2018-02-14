@@ -229,22 +229,56 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
   return TRUE;
 }
 
+static void
+migrate_irep_child(mrb_state *mrb, mrb_irep *ret, mrb_state *mrb2)
+{
+  int i;
+  mrb_code *old_iseq;
+
+  // migrate symbols
+  for (i = 0; i < ret->slen; i++) {
+    mrb_sym newsym = migrate_sym(mrb, ret->syms[i], mrb2);
+    ret->syms[i] = newsym;
+  }
+
+  // migrate pool
+  for (i = 0; i < ret->plen; ++i) {
+    mrb_value v = ret->pool[i];
+    if (mrb_type(v) == MRB_TT_STRING) {
+      struct RString *s = mrb_str_ptr(v);
+      if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
+        char *old = RSTRING_PTR(v);
+        s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
+        memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
+        RSTR_UNSET_NOFREE_FLAG(s);
+      }
+    }
+  }
+
+  // migrate iseq
+  if (ret->flags & MRB_ISEQ_NO_FREE) {
+    old_iseq = ret->iseq;
+    ret->iseq = (mrb_code*)mrb_malloc(mrb2, sizeof(mrb_code) * ret->ilen);
+    memcpy(ret->iseq, old_iseq, sizeof(mrb_code) * ret->ilen);
+    ret->flags &= ~MRB_ISEQ_NO_FREE;
+  }
+
+  // migrate sub ireps
+  for (i = 0; i < ret->rlen; ++i) {
+    migrate_irep_child(mrb, ret->reps[i], mrb2);
+  }
+}
+
 static mrb_irep*
 migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
   uint8_t *irep = NULL;
   size_t binsize = 0;
   mrb_irep *ret;
-  int i;
   mrb_dump_irep(mrb, src, DUMP_ENDIAN_NAT, &irep, &binsize);
 
   ret = mrb_read_irep(mrb2, irep);
-#ifdef MRB_USE_ETEXT_EDATA
+  migrate_irep_child(mrb, ret, mrb2);
   mrb_free(mrb, irep);
-#endif
-  for (i = 0; i < src->slen; i++) {
-    mrb_sym newsym = migrate_sym(mrb, src->syms[i], mrb2);
-    ret->syms[i] = newsym;
-  }
   return ret;
 }
 
