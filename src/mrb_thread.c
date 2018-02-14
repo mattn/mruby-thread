@@ -241,7 +241,9 @@ migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
   mrb_dump_irep(mrb, src, DUMP_ENDIAN_NAT, &irep, &binsize);
 
   ret = mrb_read_irep(mrb2, irep);
+#ifdef MRB_USE_ETEXT_EDATA
   mrb_free(mrb, irep);
+#endif
   for (i = 0; i < src->slen; i++) {
     mrb_sym newsym = migrate_sym(mrb, src->syms[i], mrb2);
     ret->syms[i] = newsym;
