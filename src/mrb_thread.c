@@ -676,8 +676,7 @@ mrb_queue_init(mrb_state* mrb, mrb_value self) {
   context->mrb = mrb;
   context->queue = mrb_ary_new(mrb);
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "queue"), context->queue);
-  DATA_PTR(self) = context;
-  DATA_TYPE(self) = &mrb_queue_context_type;
+  mrb_data_init(self, context, &mrb_queue_context_type);
   return self;
 }
 
