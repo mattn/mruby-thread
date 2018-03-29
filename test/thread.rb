@@ -104,6 +104,8 @@ class DummyObj
 end
 
 assert('Thread migrates Object') do
+  skip
+
   a = DummyObj.new
   t = Thread.new(a) do |a|
     a.foo = "foo"
