@@ -492,65 +492,63 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_value proc = mrb_nil_value();
   mrb_int argc;
   mrb_value* argv;
+
+  int i, l;
+  mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
+  mrb_state* mrb2;
+  struct RProc *rproc;
+
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
   if (!mrb_nil_p(proc) && MRB_PROC_CFUNC_P(mrb_proc_ptr(proc))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "forking C defined block");
   }
-  if (!mrb_nil_p(proc)) {
-    int i, l;
-    mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
-    mrb_state* mrb2;
-    struct RProc *rproc;
+  if (mrb_nil_p(proc)) { return self; }
 
-    context->mrb_caller = mrb;
-    mrb2 = mrb_symbol_safe_copy(mrb);
-    if(!mrb2) {
-      mrb_raise(mrb, E_RUNTIME_ERROR, "copying mrb_state failed");
-    }
-    context->mrb = mrb2;
-    rproc = mrb_proc_ptr(proc);
-    context->proc = migrate_rproc(mrb, rproc, mrb2);
-    MRB_PROC_SET_TARGET_CLASS(context->proc, context->mrb->object_class);
-    context->argc = argc;
-    context->argv = calloc(sizeof (mrb_value), context->argc);
-    context->result = mrb_nil_value();
-    context->alive = TRUE;
-    for (i = 0; i < context->argc; i++) {
-      context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
-    }
-
-    {
-      mrb_value gv = mrb_funcall(mrb, self, "global_variables", 0, NULL);
-      l = RARRAY_LEN(gv);
-      for (i = 0; i < l; i++) {
-        mrb_int len;
-        int ai = mrb_gc_arena_save(mrb);
-        mrb_value k = mrb_ary_entry(gv, i);
-        mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
-        if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
-          const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
-          mrb_gv_set(context->mrb,
-            mrb_intern_static(context->mrb, p, len),
-            migrate_simple_value(mrb, o, context->mrb));
-        }
-        mrb_gc_arena_restore(mrb, ai);
-      }
-    }
-
-    mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "context"), mrb_obj_value(
-      Data_Wrap_Struct(mrb, mrb->object_class,
-      &mrb_thread_context_type, (void*) context)));
-
-    pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context);
+  context->mrb_caller = mrb;
+  mrb2 = mrb_symbol_safe_copy(mrb);
+  if(!mrb2) {
+    mrb_raise(mrb, E_RUNTIME_ERROR, "copying mrb_state failed");
   }
+  context->mrb = mrb2;
+  rproc = mrb_proc_ptr(proc);
+  context->proc = migrate_rproc(mrb, rproc, mrb2);
+  MRB_PROC_SET_TARGET_CLASS(context->proc, context->mrb->object_class);
+  context->argc = argc;
+  context->argv = calloc(sizeof (mrb_value), context->argc);
+  context->result = mrb_nil_value();
+  context->alive = TRUE;
+  for (i = 0; i < context->argc; i++) {
+    context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
+  }
+
+  {
+    mrb_value gv = mrb_funcall(mrb, self, "global_variables", 0, NULL);
+    l = RARRAY_LEN(gv);
+    for (i = 0; i < l; i++) {
+      mrb_int len;
+      int ai = mrb_gc_arena_save(mrb);
+      mrb_value k = mrb_ary_entry(gv, i);
+      mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
+      if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
+        const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
+        mrb_gv_set(context->mrb,
+                   mrb_intern_static(context->mrb, p, len),
+                   migrate_simple_value(mrb, o, context->mrb));
+      }
+      mrb_gc_arena_restore(mrb, ai);
+    }
+  }
+
+  mrb_data_init(self, context, &mrb_thread_context_type);
+
+  pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context);
+
   return self;
 }
 
 static mrb_value
 mrb_thread_join(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
-  mrb_thread_context* context = NULL;
-  Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
+  mrb_thread_context* context = (mrb_thread_context*)DATA_PTR(self);
   pthread_join(context->thread, NULL);
 
   context->result = migrate_simple_value(context->mrb, context->result, mrb);
@@ -561,9 +559,7 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_thread_kill(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
-  mrb_thread_context* context = NULL;
-  Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
+  mrb_thread_context* context = (mrb_thread_context*)DATA_PTR(self);
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
@@ -575,11 +571,8 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
 
 static mrb_value
 mrb_thread_alive(mrb_state* mrb, mrb_value self) {
-  mrb_value value_context = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "context"));
-  mrb_thread_context* context = NULL;
-  Data_Get_Struct(mrb, value_context, &mrb_thread_context_type, context);
-
-  return context->alive ? mrb_true_value() : mrb_false_value();
+  mrb_thread_context* context = (mrb_thread_context*)DATA_PTR(self);
+  return mrb_bool_value(context->alive);
 }
 
 static mrb_value
