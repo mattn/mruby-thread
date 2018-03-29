@@ -60,8 +60,10 @@ static void
 mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
+    if (context->alive) {
+      pthread_cancel(context->thread);
+    }
     if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
-    if (context->alive) pthread_kill(context->thread, SIGINT);
     if (context->argv) free(context->argv);
     free(p);
   }
