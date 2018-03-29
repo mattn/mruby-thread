@@ -367,7 +367,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
       nv = mrb_ary_new_capa(mrb2, RARRAY_LEN(v));
       ai = mrb_gc_arena_save(mrb2);
       for (i=0; i<RARRAY_LEN(v); i++) {
-        mrb_ary_push(mrb, nv, migrate_simple_value(mrb, RARRAY_PTR(v)[i], mrb2));
+        mrb_ary_push(mrb2, nv, migrate_simple_value(mrb, RARRAY_PTR(v)[i], mrb2));
         mrb_gc_arena_restore(mrb2, ai);
       }
     }
