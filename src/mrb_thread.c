@@ -364,7 +364,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
       if (mrb_nil_p(cls_path)) {
         return mrb_nil_value();
       }
-      c = path2class(mrb, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
+      c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
       nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
     }
     migrate_simple_iv(mrb, v, mrb2, nv);
@@ -446,7 +446,7 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
 #endif
   case MRB_TT_DATA: {
     mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v));
-    struct RClass *c = path2class(mrb, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
+    struct RClass *c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
       mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
     nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
