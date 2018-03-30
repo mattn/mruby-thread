@@ -57,11 +57,17 @@ typedef struct {
 } mrb_thread_context;
 
 static void
+check_pthread_error(mrb_state *mrb, int res) {
+  if (res == 0) { return; }
+  mrb_raise(mrb, mrb_class_get(mrb, "ThreadError"), strerror(res));
+}
+
+static void
 mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
     if (context->alive) {
-      pthread_cancel(context->thread);
+      check_pthread_error(mrb, pthread_cancel(context->thread));
     }
     if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
     if (context->argv) free(context->argv);
@@ -583,7 +589,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
 
   mrb_data_init(self, context, &mrb_thread_context_type);
 
-  pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context);
+  check_pthread_error(mrb, pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context));
 
   return self;
 }
@@ -591,7 +597,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_thread_join(mrb_state* mrb, mrb_value self) {
   mrb_thread_context* context = (mrb_thread_context*)DATA_PTR(self);
-  pthread_join(context->thread, NULL);
+  check_pthread_error(mrb, pthread_join(context->thread, NULL));
 
   context->result = migrate_simple_value(context->mrb, context->result, mrb);
   mrb_close(context->mrb);
@@ -605,7 +611,7 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
-  if(context->alive) pthread_kill(context->thread, SIGINT);
+  if(context->alive) check_pthread_error(mrb, pthread_kill(context->thread, SIGINT));
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
@@ -632,7 +638,7 @@ mrb_thread_sleep(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_mutex_init(mrb_state* mrb, mrb_value self) {
   mrb_mutex_context* context = (mrb_mutex_context*) malloc(sizeof(mrb_mutex_context));
-  pthread_mutex_init(&context->mutex, NULL);
+  check_pthread_error(mrb, pthread_mutex_init(&context->mutex, NULL));
   context->locked = FALSE;
   DATA_PTR(self) = context;
   DATA_TYPE(self) = &mrb_mutex_context_type;
@@ -642,9 +648,7 @@ mrb_mutex_init(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_mutex_lock(mrb_state* mrb, mrb_value self) {
   mrb_mutex_context* context = DATA_PTR(self);
-  if (pthread_mutex_lock(&context->mutex) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
-  }
+  check_pthread_error(mrb, pthread_mutex_lock(&context->mutex));
   context->locked = TRUE;
   return mrb_nil_value();
 }
@@ -668,9 +672,7 @@ mrb_mutex_locked(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_mutex_unlock(mrb_state* mrb, mrb_value self) {
   mrb_mutex_context* context = DATA_PTR(self);
-  if (pthread_mutex_unlock(&context->mutex) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
-  }
+  check_pthread_error(mrb, pthread_mutex_unlock(&context->mutex));
   context->locked = FALSE;
   return mrb_nil_value();
 }
@@ -703,12 +705,10 @@ mrb_mutex_synchronize(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_queue_init(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = (mrb_queue_context*) malloc(sizeof(mrb_queue_context));
-  pthread_mutex_init(&context->mutex, NULL);
-  pthread_cond_init(&context->cond, NULL);
-  pthread_mutex_init(&context->queue_lock, NULL);
-  if (pthread_mutex_lock(&context->queue_lock) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
-  }
+  check_pthread_error(mrb, pthread_mutex_init(&context->mutex, NULL));
+  check_pthread_error(mrb, pthread_cond_init(&context->cond, NULL));
+  check_pthread_error(mrb, pthread_mutex_init(&context->queue_lock, NULL));
+  check_pthread_error(mrb, pthread_mutex_lock(&context->queue_lock));
   context->mrb = mrb;
   context->queue = mrb_ary_new(mrb);
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "queue"), context->queue);
@@ -719,9 +719,7 @@ mrb_queue_init(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_queue_lock(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = DATA_PTR(self);
-  if (pthread_mutex_lock(&context->mutex) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
-  }
+  check_pthread_error(mrb, pthread_mutex_lock(&context->mutex));
   return mrb_nil_value();
 }
 
@@ -729,9 +727,7 @@ mrb_queue_lock(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_queue_unlock(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = DATA_PTR(self);
-  if (pthread_mutex_unlock(&context->mutex) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
-  }
+  check_pthread_error(mrb, pthread_mutex_unlock(&context->mutex));
   return mrb_nil_value();
 }
 
@@ -752,9 +748,7 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_queue_lock(mrb, self);
   mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
-  if (pthread_cond_signal(&context->cond) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
-  }
+  check_pthread_error(mrb, pthread_cond_signal(&context->cond));
   return mrb_nil_value();
 }
 
@@ -767,9 +761,7 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
   len = RARRAY_LEN(context->queue);
   mrb_queue_unlock(mrb, self);
   if (len == 0) {
-    if (pthread_cond_wait(&context->cond, &context->queue_lock) != 0) {
-      mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
-    }
+    check_pthread_error(mrb, pthread_cond_wait(&context->cond, &context->queue_lock));
   }
   mrb_queue_lock(mrb, self);
   ret = migrate_simple_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
@@ -785,9 +777,7 @@ mrb_queue_unshift(mrb_state* mrb, mrb_value self) {
   mrb_get_args(mrb, "o", &arg);
   mrb_ary_unshift(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
-  if (pthread_cond_signal(&context->cond) != 0) {
-    mrb_raise(mrb, E_RUNTIME_ERROR, "cannot unlock");
-  }
+  check_pthread_error(mrb, pthread_cond_signal(&context->cond));
   return mrb_nil_value();
 }
 
@@ -800,9 +790,7 @@ mrb_queue_shift(mrb_state* mrb, mrb_value self) {
   len = RARRAY_LEN(context->queue);
   mrb_queue_unlock(mrb, self);
   if (len == 0) {
-    if (pthread_cond_wait(&context->cond, &context->queue_lock) != 0) {
-      mrb_raise(mrb, E_RUNTIME_ERROR, "cannot lock");
-    }
+    check_pthread_error(mrb, pthread_cond_wait(&context->cond, &context->queue_lock));
   }
   mrb_queue_lock(mrb, self);
   ret = migrate_simple_value(context->mrb, mrb_ary_shift(context->mrb, context->queue), mrb);
@@ -839,6 +827,8 @@ mrb_queue_size(mrb_state* mrb, mrb_value self) {
 void
 mrb_mruby_thread_gem_init(mrb_state* mrb) {
   struct RClass *_class_thread, *_class_mutex, *_class_queue;
+
+  mrb_define_class(mrb, "ThreadError", mrb->eStandardError_class);
 
   _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
 #ifdef MRB_THREAD_COPY_VALUES
