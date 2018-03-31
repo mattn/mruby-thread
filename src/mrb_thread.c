@@ -157,6 +157,7 @@ static mrb_bool
 is_safe_migratable_datatype(const mrb_data_type *type)
 {
   static const char *known_type_names[] = {
+    "mrb_thread_context",
     "mrb_mutex_context",
     "mrb_queue_context",
     "IO",
