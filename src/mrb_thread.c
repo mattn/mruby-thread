@@ -709,11 +709,13 @@ mrb_queue_init(mrb_state* mrb, mrb_value self) {
   check_pthread_error(mrb, pthread_mutex_init(&context->mutex, NULL));
   check_pthread_error(mrb, pthread_cond_init(&context->cond, NULL));
   check_pthread_error(mrb, pthread_mutex_init(&context->queue_lock, NULL));
-  check_pthread_error(mrb, pthread_mutex_lock(&context->queue_lock));
   context->mrb = mrb;
   context->queue = mrb_ary_new(mrb);
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "queue"), context->queue);
   mrb_data_init(self, context, &mrb_queue_context_type);
+
+  check_pthread_error(mrb, pthread_mutex_lock(&context->queue_lock));
+
   return self;
 }
 
@@ -735,9 +737,11 @@ mrb_queue_unlock(mrb_state* mrb, mrb_value self) {
 static mrb_value
 mrb_queue_clear(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = DATA_PTR(self);
+
   mrb_queue_lock(mrb, self);
   mrb_ary_clear(mrb, context->queue);
   mrb_queue_unlock(mrb, self);
+
   return mrb_nil_value();
 }
 
@@ -746,9 +750,11 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_value arg;
   mrb_queue_context* context = DATA_PTR(self);
   mrb_get_args(mrb, "o", &arg);
+
   mrb_queue_lock(mrb, self);
   mrb_ary_push(context->mrb, context->queue, mrb_thread_migrate_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
+
   check_pthread_error(mrb, pthread_cond_signal(&context->cond));
   return mrb_nil_value();
 }
@@ -758,15 +764,19 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
   mrb_value ret;
   mrb_queue_context* context = DATA_PTR(self);
   int len;
+
   mrb_queue_lock(mrb, self);
   len = RARRAY_LEN(context->queue);
   mrb_queue_unlock(mrb, self);
+
   if (len == 0) {
     check_pthread_error(mrb, pthread_cond_wait(&context->cond, &context->queue_lock));
   }
+
   mrb_queue_lock(mrb, self);
   ret = mrb_thread_migrate_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
+
   return ret;
 }
 
@@ -774,10 +784,12 @@ static mrb_value
 mrb_queue_unshift(mrb_state* mrb, mrb_value self) {
   mrb_value arg;
   mrb_queue_context* context = DATA_PTR(self);
-  mrb_queue_lock(mrb, self);
   mrb_get_args(mrb, "o", &arg);
+
+  mrb_queue_lock(mrb, self);
   mrb_ary_unshift(context->mrb, context->queue, mrb_thread_migrate_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
+
   check_pthread_error(mrb, pthread_cond_signal(&context->cond));
   return mrb_nil_value();
 }
@@ -787,15 +799,19 @@ mrb_queue_shift(mrb_state* mrb, mrb_value self) {
   mrb_value ret;
   mrb_queue_context* context = DATA_PTR(self);
   int len;
+
   mrb_queue_lock(mrb, self);
   len = RARRAY_LEN(context->queue);
   mrb_queue_unlock(mrb, self);
+
   if (len == 0) {
     check_pthread_error(mrb, pthread_cond_wait(&context->cond, &context->queue_lock));
   }
+
   mrb_queue_lock(mrb, self);
   ret = mrb_thread_migrate_value(context->mrb, mrb_ary_shift(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
+
   return ret;
 }
 
@@ -809,9 +825,11 @@ static mrb_value
 mrb_queue_empty_p(mrb_state* mrb, mrb_value self) {
   mrb_bool ret;
   mrb_queue_context* context = DATA_PTR(self);
+
   mrb_queue_lock(mrb, self);
   ret = RARRAY_LEN(context->queue) == 0;
   mrb_queue_unlock(mrb, self);
+
   return mrb_bool_value(ret);
 }
 
@@ -819,9 +837,11 @@ static mrb_value
 mrb_queue_size(mrb_state* mrb, mrb_value self) {
   mrb_int ret;
   mrb_queue_context* context = DATA_PTR(self);
+
   mrb_queue_lock(mrb, self);
   ret = RARRAY_LEN(context->queue);
   mrb_queue_unlock(mrb, self);
+
   return mrb_fixnum_value(ret);
 }
 
