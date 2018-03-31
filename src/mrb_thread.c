@@ -361,7 +361,6 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   mrb_value nv;
 
   switch (mrb_type(v)) {
-#ifdef MRB_THREAD_COPY_VALUES
   case MRB_TT_OBJECT:
   case MRB_TT_EXCEPTION:
     {
@@ -434,22 +433,6 @@ migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
     }
     migrate_simple_iv(mrb, v, mrb2, nv);
     break;
-#else
-    case MRB_TT_OBJECT:
-    case MRB_TT_EXCEPTION:
-    case MRB_TT_PROC:
-    case MRB_TT_FALSE:
-    case MRB_TT_TRUE:
-    case MRB_TT_FIXNUM:
-    case MRB_TT_SYMBOL:
-    case MRB_TT_FLOAT:
-    case MRB_TT_STRING:
-    case MRB_TT_RANGE:
-    case MRB_TT_ARRAY:
-    case MRB_TT_HASH:
-      nv = v;
-      break;
-#endif
   case MRB_TT_DATA: {
     mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v));
     struct RClass *c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
@@ -831,12 +814,8 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   mrb_define_class(mrb, "ThreadError", mrb->eStandardError_class);
 
   _class_thread = mrb_define_class(mrb, "Thread", mrb->object_class);
-#ifdef MRB_THREAD_COPY_VALUES
-  mrb_define_const(mrb, _class_thread, "COPY_VALUES", mrb_true_value());
-#else
-  mrb_define_const(mrb, _class_thread, "COPY_VALUES", mrb_false_value());
-#endif
   MRB_SET_INSTANCE_TT(_class_thread, MRB_TT_DATA);
+  mrb_define_const(mrb, _class_thread, "COPY_VALUES", mrb_true_value());
   mrb_define_method(mrb, _class_thread, "initialize", mrb_thread_init, MRB_ARGS_OPT(1));
   mrb_define_method(mrb, _class_thread, "join", mrb_thread_join, MRB_ARGS_NONE());
   mrb_define_method(mrb, _class_thread, "kill", mrb_thread_kill, MRB_ARGS_NONE());
