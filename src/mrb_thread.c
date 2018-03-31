@@ -519,6 +519,8 @@ mrb_symbol_safe_copy(mrb_state *mrb_src) {
 
 static mrb_value
 mrb_thread_init(mrb_state* mrb, mrb_value self) {
+  static mrb_thread_context const ctx_zero = {0};
+
   mrb_value proc = mrb_nil_value();
   mrb_int argc;
   mrb_value* argv;
@@ -527,6 +529,9 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   mrb_thread_context* context = (mrb_thread_context*) malloc(sizeof(mrb_thread_context));
   mrb_state* mrb2;
   struct RProc *rproc;
+
+  *context = ctx_zero;
+  mrb_data_init(self, context, &mrb_thread_context_type);
 
   mrb_get_args(mrb, "&*", &proc, &argv, &argc);
   if (!mrb_nil_p(proc) && MRB_PROC_CFUNC_P(mrb_proc_ptr(proc))) {
@@ -568,8 +573,6 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
       mrb_gc_arena_restore(mrb, ai);
     }
   }
-
-  mrb_data_init(self, context, &mrb_thread_context_type);
 
   check_pthread_error(mrb, pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context));
 
