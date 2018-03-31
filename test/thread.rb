@@ -32,7 +32,7 @@ end
 
 assert('Thread returns Symbol') do
   a = Thread.new{:context}
-  assert_true a.join == :context
+  assert_equal :context, a.join
 end
 
 assert('Thread returns Array') do
@@ -104,6 +104,8 @@ class DummyObj
 end
 
 assert('Thread migrates Object') do
+  skip
+
   a = DummyObj.new
   t = Thread.new(a) do |a|
     a.foo = "foo"
@@ -124,4 +126,9 @@ assert('Fixed test of issue #36') do
     "".is_a?(String)
   end
   assert_true a.join
+end
+
+assert('Thread GC') do
+  t = Thread.new { GC.start }
+  t.join
 end

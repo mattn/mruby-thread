@@ -56,3 +56,13 @@ assert('Queue#size') do
   assert_equal q.size, 0
 end
 
+assert('Queue#push alloced') do
+  q = Queue.new
+  t = Thread.new do
+    q.push ['test1'.dup]
+    'test2'
+  end
+
+  assert_equal ['test1'], q.pop
+  assert_equal 'test2', t.join
+end
