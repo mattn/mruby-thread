@@ -129,6 +129,6 @@ assert('Fixed test of issue #36') do
 end
 
 assert('Thread GC') do
-  t = Thread.new { GC.start }
-  t.join
+  t = Thread.new { GC.start; :end }
+  assert_equal :end, t.join
 end
