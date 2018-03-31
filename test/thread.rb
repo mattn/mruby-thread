@@ -32,7 +32,7 @@ end
 
 assert('Thread returns Symbol') do
   a = Thread.new{:context}
-  assert_true a.join == :context
+  assert_equal :context, a.join
 end
 
 assert('Thread returns Array') do
