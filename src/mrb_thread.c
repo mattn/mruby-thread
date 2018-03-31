@@ -67,7 +67,7 @@ mrb_thread_context_free(mrb_state *mrb, void *p) {
   if (p) {
     mrb_thread_context* context = (mrb_thread_context*) p;
     if (context->alive) {
-      check_pthread_error(mrb, pthread_cancel(context->thread));
+      pthread_cancel(context->thread);
     }
     if (context->mrb && context->mrb != mrb) mrb_close(context->mrb);
     if (context->argv) free(context->argv);
