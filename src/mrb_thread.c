@@ -357,6 +357,15 @@ path2class(mrb_state *M, char const* path_begin, mrb_int len) {
   return ret;
 }
 
+enum mrb_timezone { TZ_NONE = 0 };
+
+struct mrb_time {
+  time_t              sec;
+  time_t              usec;
+  enum mrb_timezone   timezone;
+  struct tm           datetime;
+};
+
 // based on https://gist.github.com/3066997
 mrb_value
 mrb_thread_migrate_value(mrb_state *mrb, mrb_value const v, mrb_state *mrb2) {
@@ -442,15 +451,18 @@ mrb_thread_migrate_value(mrb_state *mrb, mrb_value const v, mrb_state *mrb2) {
   }
 
   case MRB_TT_DATA: {
-    mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v));
+    mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v)), nv;
     struct RClass *c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
       mrb_raisef(mrb, E_TYPE_ERROR, "cannot migrate object: %S(%S)",
                  mrb_str_new_cstr(mrb, DATA_TYPE(v)->struct_name), mrb_inspect(mrb, v));
+    nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
     if (strcmp(DATA_TYPE(v)->struct_name, "Time") == 0) {
-      return mrb_funcall(mrb2, v, "dup", 0);
+      DATA_PTR(nv) = mrb_malloc(mrb, sizeof(struct mrb_time));
+      *((struct mrb_time*)DATA_PTR(nv)) = *((struct mrb_time*)DATA_PTR(v));
+      DATA_TYPE(nv) = DATA_TYPE(v);
+      return nv;
     } else {
-      mrb_value nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
       DATA_PTR(nv) = DATA_PTR(v);
       // Don't copy type information to avoid freeing in sub-thread.
       // DATA_TYPE(nv) = DATA_TYPE(v);
