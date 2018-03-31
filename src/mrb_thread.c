@@ -245,12 +245,6 @@ migrate_irep_child(mrb_state *mrb, mrb_irep *ret, mrb_state *mrb2)
   int i;
   mrb_code *old_iseq;
 
-  // migrate symbols
-  for (i = 0; i < ret->slen; i++) {
-    mrb_sym newsym = migrate_sym(mrb, ret->syms[i], mrb2);
-    ret->syms[i] = newsym;
-  }
-
   // migrate pool
   for (i = 0; i < ret->plen; ++i) {
     mrb_value v = ret->pool[i];
@@ -477,61 +471,6 @@ mrb_thread_func(void* data) {
   return NULL;
 }
 
-#include "mrb_init_functions.h"
-#define DONE mrb_gc_arena_restore(mrb, 0);
-
-/* Base from mrb_open_core in state.c */
-static mrb_state*
-mrb_symbol_safe_copy(mrb_state *mrb_src) {
-  static const mrb_state mrb_state_zero = {0};
-  static const struct mrb_context mrb_context_zero = {0};
-  mrb_state *mrb;
-  mrb_allocf f = mrb_src->allocf;
-  void *ud = mrb_src->allocf_ud;
-
-  mrb = (mrb_state *)(f)(NULL, NULL, sizeof(mrb_state), ud);
-  if (mrb == NULL) return NULL;
-
-  *mrb = mrb_state_zero;
-  mrb->allocf_ud = ud;
-  mrb->allocf = f;
-  mrb->atexit_stack_len = 0;
-
-  mrb_gc_init(mrb, &mrb->gc);
-  mrb->c = (struct mrb_context *)mrb_malloc(mrb, sizeof(struct mrb_context));
-  *mrb->c = mrb_context_zero;
-  mrb->root_c = mrb->c;
-
-  /* As mrb_init_core do but copy symbols before library initialization */
-  mrb_init_symtbl(mrb); DONE;
-
-  migrate_all_symbols(mrb_src, mrb); DONE;
-
-  mrb_init_class(mrb); DONE;
-  mrb_init_object(mrb); DONE;
-  mrb_init_kernel(mrb); DONE;
-  mrb_init_comparable(mrb); DONE;
-  mrb_init_enumerable(mrb); DONE;
-
-  mrb_init_symbol(mrb); DONE;
-  mrb_init_exception(mrb); DONE;
-  mrb_init_proc(mrb); DONE;
-  mrb_init_string(mrb); DONE;
-  mrb_init_array(mrb); DONE;
-  mrb_init_hash(mrb); DONE;
-  mrb_init_numeric(mrb); DONE;
-  mrb_init_range(mrb); DONE;
-  mrb_init_gc(mrb); DONE;
-  mrb_init_version(mrb); DONE;
-  mrb_init_mrblib(mrb); DONE;
-
-#ifndef DISABLE_GEMS
-  mrb_init_mrbgems(mrb); DONE;
-#endif
-
-  return mrb;
-}
-
 static mrb_value
 mrb_thread_init(mrb_state* mrb, mrb_value self) {
   static mrb_thread_context const ctx_zero = {0};
@@ -555,7 +494,8 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   if (mrb_nil_p(proc)) { return self; }
 
   context->mrb_caller = mrb;
-  mrb2 = mrb_symbol_safe_copy(mrb);
+  mrb2 = mrb_open();
+  migrate_all_symbols(mrb, mrb2);
   if(!mrb2) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "copying mrb_state failed");
   }
