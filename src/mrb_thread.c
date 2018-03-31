@@ -292,7 +292,11 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
   struct RProc *newproc = mrb_proc_new(mrb2, migrate_irep(mrb, rproc->body.irep, mrb2));
   mrb_irep_decref(mrb2, newproc->body.irep);
 
+#ifdef MRB_PROC_ENV_P
   if (_MRB_PROC_ENV(rproc) && MRB_PROC_ENV_P(rproc)) {
+#else
+  if (_MRB_PROC_ENV(rproc)) {
+#endif
     mrb_int i, len = MRB_ENV_STACK_LEN(_MRB_PROC_ENV(rproc));
     struct REnv *newenv = (struct REnv*)mrb_obj_alloc(mrb2, MRB_TT_ENV, mrb2->object_class);
 
