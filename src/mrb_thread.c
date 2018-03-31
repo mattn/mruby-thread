@@ -119,7 +119,7 @@ static const struct mrb_data_type mrb_queue_context_type = {
   "mrb_queue_context", mrb_queue_context_free,
 };
 
-static mrb_value migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2);
+mrb_value mrb_thread_migrate_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2);
 
 static mrb_sym
 migrate_sym(mrb_state *mrb, mrb_sym sym, mrb_state *mrb2)
@@ -149,7 +149,7 @@ migrate_simple_iv(mrb_state *mrb, mrb_value v, mrb_state *mrb2, mrb_value v2)
     mrb_sym sym = mrb_symbol(RARRAY_PTR(ivars)[i]);
     mrb_sym sym2 = migrate_sym(mrb, sym, mrb2);
     iv = mrb_iv_get(mrb, v, sym);
-    mrb_iv_set(mrb2, v2, sym2, migrate_simple_value(mrb, iv, mrb2));
+    mrb_iv_set(mrb2, v2, sym2, mrb_thread_migrate_value(mrb, iv, mrb2));
   }
 }
 
@@ -307,7 +307,7 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
       if (mrb_obj_ptr(v) == ((struct RObject*)rproc)) {
         newenv->stack[i] = mrb_obj_value(newproc);
       } else {
-        newenv->stack[i] = migrate_simple_value(mrb, v, mrb2);
+        newenv->stack[i] = mrb_thread_migrate_value(mrb, v, mrb2);
       }
     }
     _MRB_PROC_ENV(newproc) = newenv;
@@ -330,16 +330,19 @@ path2class(mrb_state *M, char const* path_begin, mrb_int len) {
   struct RClass* ret = M->object_class;
 
   while(1) {
+    mrb_sym cls;
+    mrb_value cnst;
+
     while((p < end && p[0] != ':') ||
           ((p + 1) < end && p[1] != ':')) ++p;
 
-    mrb_sym const cls = mrb_intern(M, begin, p - begin);
+    cls = mrb_intern(M, begin, p - begin);
     if (!mrb_mod_cv_defined(M, ret, cls)) {
       mrb_raisef(M, mrb_class_get(M, "ArgumentError"), "undefined class/module %S",
                  mrb_str_new(M, path_begin, p - path_begin));
     }
 
-    mrb_value const cnst = mrb_mod_cv_get(M, ret, cls);
+    cnst = mrb_mod_cv_get(M, ret, cls);
     if (mrb_type(cnst) != MRB_TT_CLASS &&  mrb_type(cnst) != MRB_TT_MODULE) {
       mrb_raisef(M, mrb_class_get(M, "TypeError"), "%S does not refer to class/module",
                  mrb_str_new(M, path_begin, p - path_begin));
@@ -355,100 +358,111 @@ path2class(mrb_state *M, char const* path_begin, mrb_int len) {
 }
 
 // based on https://gist.github.com/3066997
-static mrb_value
-migrate_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
-  mrb_value nv;
-
+mrb_value
+mrb_thread_migrate_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2) {
   switch (mrb_type(v)) {
+  case MRB_TT_CLASS:
+  case MRB_TT_MODULE: {
+    mrb_value cls_path = mrb_class_path(mrb, mrb_class_ptr(v));
+    struct RClass *c;
+    if (mrb_nil_p(cls_path)) {
+      return mrb_nil_value();
+    }
+    c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
+    return mrb_obj_value(c);
+  }
+
   case MRB_TT_OBJECT:
   case MRB_TT_EXCEPTION:
     {
-      mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v));
+      mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v)), nv;
       struct RClass *c;
       if (mrb_nil_p(cls_path)) {
         return mrb_nil_value();
       }
       c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
       nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
+      migrate_simple_iv(mrb, v, mrb2, nv);
+      if (mrb_type(v) == MRB_TT_EXCEPTION) {
+        mrb_iv_set(mrb2, nv, mrb_intern_lit(mrb2, "mesg"),
+                   mrb_thread_migrate_value(mrb, mrb_iv_get(mrb, v, mrb_intern_lit(mrb, "mesg")), mrb2));
+      }
+      return nv;
     }
-    migrate_simple_iv(mrb, v, mrb2, nv);
     break;
   case MRB_TT_PROC:
-    {
-      struct RProc *rproc = mrb_proc_ptr(v);
-      nv = mrb_obj_value(migrate_rproc(mrb, rproc, mrb2));
-    }
-    break;
+    return mrb_obj_value(migrate_rproc(mrb, mrb_proc_ptr(v), mrb2));
   case MRB_TT_FALSE:
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
-    nv = v;
-    break;
+    return v;
   case MRB_TT_SYMBOL:
-    nv = mrb_symbol_value(migrate_sym(mrb, mrb_symbol(v), mrb2));
-    break;
+    return mrb_symbol_value(migrate_sym(mrb, mrb_symbol(v), mrb2));
   case MRB_TT_FLOAT:
-    nv = mrb_float_value(mrb2, mrb_float(v));
-    break;
+    return mrb_float_value(mrb2, mrb_float(v));
   case MRB_TT_STRING:
-    nv = mrb_str_new(mrb2, RSTRING_PTR(v), RSTRING_LEN(v));
-    break;
-  case MRB_TT_RANGE:
-    {
-      struct RRange *r = MRB_RANGE_PTR(v);
-      nv = mrb_range_new(mrb2,
-                         migrate_simple_value(mrb, r->edges->beg, mrb2),
-                         migrate_simple_value(mrb, r->edges->end, mrb2),
+    return mrb_str_new(mrb2, RSTRING_PTR(v), RSTRING_LEN(v));
+
+  case MRB_TT_RANGE: {
+    struct RRange *r = MRB_RANGE_PTR(v);
+    return mrb_range_new(mrb2,
+                         mrb_thread_migrate_value(mrb, r->edges->beg, mrb2),
+                         mrb_thread_migrate_value(mrb, r->edges->end, mrb2),
                          r->excl);
-    }
-    break;
-  case MRB_TT_ARRAY:
-    {
-      int i, ai;
+  }
 
-      nv = mrb_ary_new_capa(mrb2, RARRAY_LEN(v));
-      ai = mrb_gc_arena_save(mrb2);
-      for (i=0; i<RARRAY_LEN(v); i++) {
-        mrb_ary_push(mrb2, nv, migrate_simple_value(mrb, RARRAY_PTR(v)[i], mrb2));
-        mrb_gc_arena_restore(mrb2, ai);
-      }
-    }
-    break;
-  case MRB_TT_HASH:
-    {
-      mrb_value ka;
-      int i, l;
+  case MRB_TT_ARRAY: {
+    int i, ai;
 
-      nv = mrb_hash_new(mrb2);
-      ka = mrb_hash_keys(mrb, v);
-      l = RARRAY_LEN(ka);
-      for (i = 0; i < l; i++) {
-        int ai = mrb_gc_arena_save(mrb2);
-        mrb_value k = migrate_simple_value(mrb, mrb_ary_entry(ka, i), mrb2);
-        mrb_value o = migrate_simple_value(mrb, mrb_hash_get(mrb, v, k), mrb2);
-        mrb_hash_set(mrb2, nv, k, o);
-        mrb_gc_arena_restore(mrb2, ai);
-      }
+    mrb_value nv = mrb_ary_new_capa(mrb2, RARRAY_LEN(v));
+    ai = mrb_gc_arena_save(mrb2);
+    for (i=0; i<RARRAY_LEN(v); i++) {
+      mrb_ary_push(mrb2, nv, mrb_thread_migrate_value(mrb, RARRAY_PTR(v)[i], mrb2));
+      mrb_gc_arena_restore(mrb2, ai);
+    }
+    return nv;
+  }
+
+  case MRB_TT_HASH: {
+    mrb_value ka;
+    int i, l;
+
+    mrb_value nv = mrb_hash_new(mrb2);
+    ka = mrb_hash_keys(mrb, v);
+    l = RARRAY_LEN(ka);
+    for (i = 0; i < l; i++) {
+      int ai = mrb_gc_arena_save(mrb2);
+      mrb_value k = mrb_thread_migrate_value(mrb, mrb_ary_entry(ka, i), mrb2);
+      mrb_value o = mrb_thread_migrate_value(mrb, mrb_hash_get(mrb, v, k), mrb2);
+      mrb_hash_set(mrb2, nv, k, o);
+      mrb_gc_arena_restore(mrb2, ai);
     }
     migrate_simple_iv(mrb, v, mrb2, nv);
-    break;
+    return nv;
+  }
+
   case MRB_TT_DATA: {
-    mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v));
+    mrb_value cls_path = mrb_class_path(mrb, mrb_class(mrb, v)), nv;
     struct RClass *c = path2class(mrb2, RSTRING_PTR(cls_path), RSTRING_LEN(cls_path));
     if (!is_safe_migratable_datatype(DATA_TYPE(v)))
-      mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
+      mrb_raisef(mrb, E_TYPE_ERROR, "cannot migrate object: %S(%S)",
+                 mrb_str_new_cstr(mrb, DATA_TYPE(v)->struct_name), mrb_inspect(mrb, v));
     nv = mrb_obj_value(mrb_obj_alloc(mrb2, mrb_type(v), c));
     DATA_PTR(nv) = DATA_PTR(v);
     // Don't copy type information to avoid freeing in sub-thread.
     // DATA_TYPE(nv) = DATA_TYPE(v);
     migrate_simple_iv(mrb, v, mrb2, nv);
-  } break;
-
-  default:
-    mrb_raise(mrb, E_TYPE_ERROR, "cannot migrate object");
-    break;
+    return nv;
   }
-  return nv;
+
+    // case MRB_TT_FREE: return mrb_nil_value();
+
+  default: break;
+  }
+
+  // mrb_raisef(mrb, E_TYPE_ERROR, "cannot migrate object: %S", mrb_fixnum_value(mrb_type(v)));
+  mrb_raisef(mrb, E_TYPE_ERROR, "cannot migrate object: %S(%S)", mrb_inspect(mrb, v), mrb_fixnum_value(mrb_type(v)));
+  return mrb_nil_value();
 }
 
 static void*
@@ -553,7 +567,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   context->result = mrb_nil_value();
   context->alive = TRUE;
   for (i = 0; i < context->argc; i++) {
-    context->argv[i] = migrate_simple_value(mrb, argv[i], context->mrb);
+    context->argv[i] = mrb_thread_migrate_value(mrb, argv[i], context->mrb);
   }
 
   {
@@ -568,7 +582,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
         const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
         mrb_gv_set(context->mrb,
                    mrb_intern_static(context->mrb, p, len),
-                   migrate_simple_value(mrb, o, context->mrb));
+                   mrb_thread_migrate_value(mrb, o, context->mrb));
       }
       mrb_gc_arena_restore(mrb, ai);
     }
@@ -584,7 +598,7 @@ mrb_thread_join(mrb_state* mrb, mrb_value self) {
   mrb_thread_context* context = (mrb_thread_context*)DATA_PTR(self);
   check_pthread_error(mrb, pthread_join(context->thread, NULL));
 
-  context->result = migrate_simple_value(context->mrb, context->result, mrb);
+  context->result = mrb_thread_migrate_value(context->mrb, context->result, mrb);
   mrb_close(context->mrb);
   context->mrb = NULL;
   return context->result;
@@ -596,10 +610,12 @@ mrb_thread_kill(mrb_state* mrb, mrb_value self) {
   if (context->mrb == NULL) {
     return mrb_nil_value();
   }
-  if(context->alive) check_pthread_error(mrb, pthread_kill(context->thread, SIGINT));
-  mrb_close(context->mrb);
-  context->mrb = NULL;
-  return context->result;
+  if(context->alive) {
+    check_pthread_error(mrb, pthread_kill(context->thread, SIGINT));
+    context->result = mrb_thread_migrate_value(context->mrb, context->result, mrb);
+    return context->result;
+  }
+  return mrb_nil_value();
 }
 
 static mrb_value
@@ -731,7 +747,7 @@ mrb_queue_push(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = DATA_PTR(self);
   mrb_get_args(mrb, "o", &arg);
   mrb_queue_lock(mrb, self);
-  mrb_ary_push(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  mrb_ary_push(context->mrb, context->queue, mrb_thread_migrate_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
   check_pthread_error(mrb, pthread_cond_signal(&context->cond));
   return mrb_nil_value();
@@ -749,7 +765,7 @@ mrb_queue_pop(mrb_state* mrb, mrb_value self) {
     check_pthread_error(mrb, pthread_cond_wait(&context->cond, &context->queue_lock));
   }
   mrb_queue_lock(mrb, self);
-  ret = migrate_simple_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
+  ret = mrb_thread_migrate_value(context->mrb, mrb_ary_pop(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
   return ret;
 }
@@ -760,7 +776,7 @@ mrb_queue_unshift(mrb_state* mrb, mrb_value self) {
   mrb_queue_context* context = DATA_PTR(self);
   mrb_queue_lock(mrb, self);
   mrb_get_args(mrb, "o", &arg);
-  mrb_ary_unshift(context->mrb, context->queue, migrate_simple_value(mrb, arg, context->mrb));
+  mrb_ary_unshift(context->mrb, context->queue, mrb_thread_migrate_value(mrb, arg, context->mrb));
   mrb_queue_unlock(mrb, self);
   check_pthread_error(mrb, pthread_cond_signal(&context->cond));
   return mrb_nil_value();
@@ -778,7 +794,7 @@ mrb_queue_shift(mrb_state* mrb, mrb_value self) {
     check_pthread_error(mrb, pthread_cond_wait(&context->cond, &context->queue_lock));
   }
   mrb_queue_lock(mrb, self);
-  ret = migrate_simple_value(context->mrb, mrb_ary_shift(context->mrb, context->queue), mrb);
+  ret = mrb_thread_migrate_value(context->mrb, mrb_ary_shift(context->mrb, context->queue), mrb);
   mrb_queue_unlock(mrb, self);
   return ret;
 }
