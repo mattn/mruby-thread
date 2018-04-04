@@ -10,6 +10,7 @@
 #include <mruby/variable.h>
 #include <mruby/dump.h>
 #include <string.h>
+#include <sys/time.h>
 #ifndef _MSC_VER
 #include <strings.h>
 #include <unistd.h>
@@ -598,15 +599,27 @@ mrb_thread_sleep(mrb_state* mrb, mrb_value self) {
   return mrb_nil_value();
 }
 
+#ifdef _MSC_VER
+static
+int usleep(useconds_t usec) {
+	LARGE_INTEGER pf, s, c;
+	if (!QueryPerformanceFrequency(&pf))
+    return -1;
+	if (!QueryPerformanceCounter(&s))
+    return -1;
+	do {
+		if (QueryPerformanceCounter((LARGE_INTEGER*) &c))
+      return -1;
+	} while ((c.QuadPart - s.QuadPart) / (float)pf.QuadPart * 1000 * 1000 < t);
+  return 0;
+}
+#endif
+
 static mrb_value
 mrb_thread_usleep(mrb_state* mrb, mrb_value self) {
-#ifndef _WIN32
   mrb_int t;
   mrb_get_args(mrb, "i", &t);
   usleep(t);
-#else
-  mrb_raise(mrb, E_NOTIMP_ERROR, "usleep is not supported on this platform");
-#endif
   return mrb_nil_value();
 }
 
