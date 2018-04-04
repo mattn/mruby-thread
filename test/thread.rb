@@ -132,3 +132,7 @@ assert('Thread GC') do
   t = Thread.new { GC.start; :end }
   assert_equal :end, t.join
 end
+
+assert('Thread sleep') do
+  assert_nil Thread.sleep(1)
+end
