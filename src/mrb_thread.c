@@ -602,15 +602,15 @@ mrb_thread_sleep(mrb_state* mrb, mrb_value self) {
 #ifdef _MSC_VER
 static
 int usleep(useconds_t usec) {
-	LARGE_INTEGER pf, s, c;
-	if (!QueryPerformanceFrequency(&pf))
+  LARGE_INTEGER pf, s, c;
+  if (!QueryPerformanceFrequency(&pf))
     return -1;
-	if (!QueryPerformanceCounter(&s))
+  if (!QueryPerformanceCounter(&s))
     return -1;
-	do {
-		if (QueryPerformanceCounter((LARGE_INTEGER*) &c))
+  do {
+    if (QueryPerformanceCounter((LARGE_INTEGER*) &c))
       return -1;
-	} while ((c.QuadPart - s.QuadPart) / (float)pf.QuadPart * 1000 * 1000 < t);
+  } while ((c.QuadPart - s.QuadPart) / (float)pf.QuadPart * 1000 * 1000 < t);
   return 0;
 }
 #endif
