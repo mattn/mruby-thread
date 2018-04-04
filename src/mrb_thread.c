@@ -624,6 +624,18 @@ mrb_thread_usleep(mrb_state* mrb, mrb_value self) {
 }
 
 static mrb_value
+mrb_thread_usleep(mrb_state* mrb, mrb_value self) {
+#ifndef _WIN32
+  mrb_int t;
+  mrb_get_args(mrb, "i", &t);
+  usleep(t);
+#else
+  mrb_raise(mrb, E_NOTIMP_ERROR, "usleep is not supported on this platform");
+#endif
+  return mrb_nil_value();
+}
+
+static mrb_value
 mrb_mutex_init(mrb_state* mrb, mrb_value self) {
   mrb_mutex_context* context = (mrb_mutex_context*) malloc(sizeof(mrb_mutex_context));
   check_pthread_error(mrb, pthread_mutex_init(&context->mutex, NULL));
