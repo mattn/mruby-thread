@@ -136,3 +136,11 @@ end
 assert('Thread sleep') do
   assert_nil Thread.sleep(1)
 end
+
+assert('Thread usleep') do
+  begin
+    assert_nil Thread.usleep(1)
+  rescue NotImplementedError => e
+    skip e.message
+  end
+end
