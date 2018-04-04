@@ -599,6 +599,18 @@ mrb_thread_sleep(mrb_state* mrb, mrb_value self) {
 }
 
 static mrb_value
+mrb_thread_usleep(mrb_state* mrb, mrb_value self) {
+#ifndef _WIN32
+  mrb_int t;
+  mrb_get_args(mrb, "i", &t);
+  usleep(t);
+#else
+  mrb_raise(mrb, E_NOTIMP_ERROR, "usleep is not supported on this platform");
+#endif
+  return mrb_nil_value();
+}
+
+static mrb_value
 mrb_mutex_init(mrb_state* mrb, mrb_value self) {
   mrb_mutex_context* context = (mrb_mutex_context*) malloc(sizeof(mrb_mutex_context));
   check_pthread_error(mrb, pthread_mutex_init(&context->mutex, NULL));
@@ -822,6 +834,7 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, _class_thread, "terminate", mrb_thread_kill, MRB_ARGS_NONE());
   mrb_define_method(mrb, _class_thread, "alive?", mrb_thread_alive, MRB_ARGS_NONE());
   mrb_define_module_function(mrb, _class_thread, "sleep", mrb_thread_sleep, MRB_ARGS_REQ(1));
+  mrb_define_module_function(mrb, _class_thread, "usleep", mrb_thread_usleep, MRB_ARGS_REQ(1));
   mrb_define_module_function(mrb, _class_thread, "start", mrb_thread_init, MRB_ARGS_REQ(1));
 
   _class_mutex = mrb_define_class(mrb, "Mutex", mrb->object_class);
