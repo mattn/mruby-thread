@@ -311,6 +311,11 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
         newenv->stack[i] = mrb_thread_migrate_value(mrb, v, mrb2);
       }
     }
+#ifdef MRB_SET_ENV_STACK_LEN
+    MRB_SET_ENV_STACK_LEN(newenv, len);
+#else
+    MRB_ENV_SET_STACK_LEN(newenv, len);
+#endif
     _MRB_PROC_ENV(newproc) = newenv;
 #ifdef MRB_PROC_ENVSET
     newproc->flags |= MRB_PROC_ENVSET;
