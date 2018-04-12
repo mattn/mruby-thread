@@ -370,6 +370,8 @@ struct mrb_time {
 // based on https://gist.github.com/3066997
 mrb_value
 mrb_thread_migrate_value(mrb_state *mrb, mrb_value const v, mrb_state *mrb2) {
+  if (mrb == mrb2) { return v; }
+
   switch (mrb_type(v)) {
   case MRB_TT_CLASS:
   case MRB_TT_MODULE: {
