@@ -311,6 +311,11 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
         newenv->stack[i] = mrb_thread_migrate_value(mrb, v, mrb2);
       }
     }
+#ifdef MRB_SET_ENV_STACK_LEN
+    MRB_SET_ENV_STACK_LEN(newenv, len);
+#else
+    MRB_ENV_SET_STACK_LEN(newenv, len);
+#endif
     _MRB_PROC_ENV(newproc) = newenv;
 #ifdef MRB_PROC_ENVSET
     newproc->flags |= MRB_PROC_ENVSET;
@@ -370,6 +375,8 @@ struct mrb_time {
 // based on https://gist.github.com/3066997
 mrb_value
 mrb_thread_migrate_value(mrb_state *mrb, mrb_value const v, mrb_state *mrb2) {
+  if (mrb == mrb2) { return v; }
+
   switch (mrb_type(v)) {
   case MRB_TT_CLASS:
   case MRB_TT_MODULE: {
