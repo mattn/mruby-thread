@@ -193,7 +193,9 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
   case MRB_TT_TRUE:
   case MRB_TT_FIXNUM:
   case MRB_TT_SYMBOL:
+#ifndef MRB_WITHOUT_FLOAT
   case MRB_TT_FLOAT:
+#endif
   case MRB_TT_STRING:
     break;
   case MRB_TT_RANGE:
@@ -415,8 +417,10 @@ mrb_thread_migrate_value(mrb_state *mrb, mrb_value const v, mrb_state *mrb2) {
     return v;
   case MRB_TT_SYMBOL:
     return mrb_symbol_value(migrate_sym(mrb, mrb_symbol(v), mrb2));
+#ifndef MRB_WITHOUT_FLOAT
   case MRB_TT_FLOAT:
     return mrb_float_value(mrb2, mrb_float(v));
+#endif
   case MRB_TT_STRING:
     return mrb_str_new(mrb2, RSTRING_PTR(v), RSTRING_LEN(v));
 
