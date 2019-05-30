@@ -3,7 +3,7 @@ MRuby::Gem::Specification.new('mruby-thread') do |spec|
   spec.authors = 'mattn'
 
   if build.toolchains.include?('androideabi')
-    spec.cc.flags << '-DHAVE_PTHREADS'
+    spec.cc.defines << 'HAVE_PTHREADS'
   else
     spec.linker.libraries << ['pthread']
   end
