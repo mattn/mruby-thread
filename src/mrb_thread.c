@@ -545,7 +545,7 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
   }
 
   {
-    mrb_value gv = mrb_funcall(mrb, self, "global_variables", 0, NULL);
+    mrb_value gv = mrb_f_global_variables(mrb, self);
     l = RARRAY_LEN(gv);
     for (i = 0; i < l; i++) {
       mrb_int len;
