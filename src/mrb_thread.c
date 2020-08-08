@@ -282,7 +282,11 @@ migrate_irep(mrb_state *mrb, mrb_irep *src, mrb_state *mrb2) {
   uint8_t *irep = NULL;
   size_t binsize = 0;
   mrb_irep *ret;
+#ifdef DUMP_ENDIAN_NAT
   mrb_dump_irep(mrb, src, DUMP_ENDIAN_NAT, &irep, &binsize);
+#else
+  mrb_dump_irep(mrb, src, 0, &irep, &binsize);
+#endif
 
   ret = mrb_read_irep(mrb2, irep);
   migrate_irep_child(mrb, ret, mrb2);
@@ -300,11 +304,19 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
 #else
   if (_MRB_PROC_ENV(rproc)) {
 #endif
+#ifdef MRB_ENV_LEN
+    mrb_int i, len = MRB_ENV_LEN(_MRB_PROC_ENV(rproc));
+#else
     mrb_int i, len = MRB_ENV_STACK_LEN(_MRB_PROC_ENV(rproc));
+#endif
     struct REnv *newenv = (struct REnv*)mrb_obj_alloc(mrb2, MRB_TT_ENV, mrb2->object_class);
 
     newenv->stack = mrb_malloc(mrb, sizeof(mrb_value) * len);
+#ifdef MRB_ENV_CLOSE
+    MRB_ENV_CLOSE(newenv);
+#else
     MRB_ENV_UNSHARE_STACK(newenv);
+#endif
     for (i = 0; i < len; ++i) {
       mrb_value v = _MRB_PROC_ENV(rproc)->stack[i];
       if (mrb_obj_ptr(v) == ((struct RObject*)rproc)) {
@@ -315,8 +327,8 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
     }
 #ifdef MRB_SET_ENV_STACK_LEN
     MRB_SET_ENV_STACK_LEN(newenv, len);
-#else
-    MRB_ENV_SET_STACK_LEN(newenv, len);
+#elif defined MRB_ENV_SET_LEN
+    MRB_ENV_SET_LEN(newenv, len);
 #endif
     _MRB_PROC_ENV(newproc) = newenv;
 #ifdef MRB_PROC_ENVSET
