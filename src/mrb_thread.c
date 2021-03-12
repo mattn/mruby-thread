@@ -201,8 +201,8 @@ is_safe_migratable_simple_value(mrb_state *mrb, mrb_value v, mrb_state *mrb2)
   case MRB_TT_RANGE:
     {
       struct RRange *r = MRB_RANGE_PTR(v);
-      if (!is_safe_migratable_simple_value(mrb, r->edges->beg, mrb2) ||
-          !is_safe_migratable_simple_value(mrb, r->edges->end, mrb2)) {
+      if (!is_safe_migratable_simple_value(mrb, RANGE_BEG(r), mrb2) ||
+          !is_safe_migratable_simple_value(mrb, RANGE_END(r), mrb2)) {
         return FALSE;
       }
     }
@@ -250,18 +250,19 @@ migrate_irep_child(mrb_state *mrb, mrb_irep *ret, mrb_state *mrb2)
   mrb_code *old_iseq;
 
   // migrate pool
-  for (i = 0; i < ret->plen; ++i) {
-    mrb_value v = ret->pool[i];
-    if (mrb_type(v) == MRB_TT_STRING) {
-      struct RString *s = mrb_str_ptr(v);
-      if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
-        char *old = RSTRING_PTR(v);
-        s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
-        memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
-        RSTR_UNSET_NOFREE_FLAG(s);
-      }
-    }
-  }
+  // FIXME: broken with mruby3
+  // for (i = 0; i < ret->plen; ++i) {
+  //   mrb_value v = ret->pool[i];
+  //   if (mrb_type(v) == MRB_TT_STRING) {
+  //     struct RString *s = mrb_str_ptr(v);
+  //     if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
+  //       char *old = RSTRING_PTR(v);
+  //       s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
+  //       memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
+  //       RSTR_UNSET_NOFREE_FLAG(s);
+  //     }
+  //   }
+  // }
 
   // migrate iseq
   if (ret->flags & MRB_ISEQ_NO_FREE) {
@@ -439,9 +440,9 @@ mrb_thread_migrate_value(mrb_state *mrb, mrb_value const v, mrb_state *mrb2) {
   case MRB_TT_RANGE: {
     struct RRange *r = MRB_RANGE_PTR(v);
     return mrb_range_new(mrb2,
-                         mrb_thread_migrate_value(mrb, r->edges->beg, mrb2),
-                         mrb_thread_migrate_value(mrb, r->edges->end, mrb2),
-                         r->excl);
+                         mrb_thread_migrate_value(mrb, RANGE_BEG(r), mrb2),
+                         mrb_thread_migrate_value(mrb, RANGE_END(r), mrb2),
+                         RANGE_EXCL(r));
   }
 
   case MRB_TT_ARRAY: {
@@ -887,9 +888,9 @@ mrb_mruby_thread_gem_init(mrb_state* mrb) {
   MRB_SET_INSTANCE_TT(_class_queue, MRB_TT_DATA);
   mrb_define_method(mrb, _class_queue, "initialize", mrb_queue_init, MRB_ARGS_NONE());
   mrb_define_method(mrb, _class_queue, "clear", mrb_queue_clear, MRB_ARGS_NONE());
-  mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "push", mrb_queue_push, MRB_ARGS_REQ(1));
   mrb_define_alias(mrb, _class_queue, "<<", "push");
-  mrb_define_method(mrb, _class_queue, "unshift", mrb_queue_unshift, MRB_ARGS_NONE());
+  mrb_define_method(mrb, _class_queue, "unshift", mrb_queue_unshift, MRB_ARGS_REQ(1));
   mrb_define_alias(mrb, _class_queue, "enq", "unshift");
   mrb_define_method(mrb, _class_queue, "pop", mrb_queue_pop, MRB_ARGS_OPT(1));
   mrb_define_alias(mrb, _class_queue, "deq", "pop");
