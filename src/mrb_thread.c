@@ -334,10 +334,10 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
     _MRB_PROC_ENV(newproc) = newenv;
 #ifdef MRB_PROC_ENVSET
     newproc->flags |= MRB_PROC_ENVSET;
+#endif
     if (rproc->upper) {
       newproc->upper = migrate_rproc(mrb, rproc->upper, mrb2);
     }
-#endif
   }
 
   return newproc;
