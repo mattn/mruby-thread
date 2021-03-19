@@ -2,7 +2,7 @@
 # Queue test
 
 assert('Object.const_defined? :Queue') do
-  Object.const_defined?(:Queue)
+  assert_true Object.const_defined?(:Queue)
 end
 
 assert('Queue#empty?') do
@@ -24,7 +24,7 @@ assert('Queue#clear') do
   q = Queue.new
   q.push 42
   q.clear
-  q.empty?
+  assert_true q.empty?
 end
 
 assert('Queue#push and #pop') do

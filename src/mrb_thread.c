@@ -251,18 +251,20 @@ migrate_irep_child(mrb_state *mrb, mrb_irep *ret, mrb_state *mrb2)
 
   // migrate pool
   // FIXME: broken with mruby3
-  // for (i = 0; i < ret->plen; ++i) {
-  //   mrb_value v = ret->pool[i];
-  //   if (mrb_type(v) == MRB_TT_STRING) {
-  //     struct RString *s = mrb_str_ptr(v);
-  //     if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
-  //       char *old = RSTRING_PTR(v);
-  //       s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
-  //       memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
-  //       RSTR_UNSET_NOFREE_FLAG(s);
-  //     }
-  //   }
-  // }
+  #ifndef IREP_TT_SFLAG
+  for (i = 0; i < ret->plen; ++i) {
+    mrb_value v = ret->pool[i];
+    if (mrb_type(v) == MRB_TT_STRING) {
+      struct RString *s = mrb_str_ptr(v);
+      if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
+        char *old = RSTRING_PTR(v);
+        s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
+        memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
+        RSTR_UNSET_NOFREE_FLAG(s);
+      }
+    }
+  }
+  #endif
 
   // migrate iseq
   if (ret->flags & MRB_ISEQ_NO_FREE) {
@@ -334,10 +336,10 @@ migrate_rproc(mrb_state *mrb, struct RProc *rproc, mrb_state *mrb2) {
     _MRB_PROC_ENV(newproc) = newenv;
 #ifdef MRB_PROC_ENVSET
     newproc->flags |= MRB_PROC_ENVSET;
+#endif
     if (rproc->upper) {
       newproc->upper = migrate_rproc(mrb, rproc->upper, mrb2);
     }
-#endif
   }
 
   return newproc;
@@ -557,22 +559,20 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     context->argv[i] = mrb_thread_migrate_value(mrb, argv[i], context->mrb);
   }
 
-  {
-    mrb_value gv = mrb_f_global_variables(mrb, self);
-    l = RARRAY_LEN(gv);
-    for (i = 0; i < l; i++) {
-      mrb_int len;
-      int ai = mrb_gc_arena_save(mrb);
-      mrb_value k = mrb_ary_entry(gv, i);
-      mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
-      if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
-        const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
-        mrb_gv_set(context->mrb,
-                   mrb_intern_static(context->mrb, p, len),
-                   mrb_thread_migrate_value(mrb, o, context->mrb));
-      }
-      mrb_gc_arena_restore(mrb, ai);
+  mrb_value gv = mrb_f_global_variables(mrb, self);
+  l = RARRAY_LEN(gv);
+  for (i = 0; i < l; i++) {
+    mrb_int len;
+    int ai = mrb_gc_arena_save(mrb);
+    mrb_value k = mrb_ary_entry(gv, i);
+    mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
+    if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
+      const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
+      mrb_gv_set(context->mrb,
+                 mrb_intern_static(context->mrb, p, len),
+                 mrb_thread_migrate_value(mrb, o, context->mrb));
     }
+    mrb_gc_arena_restore(mrb, ai);
   }
 
   check_pthread_error(mrb, pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context));

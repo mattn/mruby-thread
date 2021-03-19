@@ -2,24 +2,22 @@
 # Mutex test
 
 assert('Object.const_defined? :Mutex') do
-  Object.const_defined?(:Mutex)
+  assert_true Object.const_defined?(:Mutex)
 end
 
 assert('Mutex#lock') do
-  #todo
-  true
+  # todo
 end
 
 assert('Mutex#unlock') do
-  #todo
-  true
+  # todo
 end
 
 assert('Mutex#locked?') do
   m = Mutex.new
   assert_false m.locked?
   m.lock
-  assert_true  m.locked?
+  assert_true m.locked?
 end
 
 assert('Mutex#try_lock') do
@@ -30,11 +28,10 @@ end
 
 assert('Mutex#synchronize returns true') do
   m = Mutex.new
-  m.synchronize {true} == true
+  assert_true(m.synchronize { true })
 end
 
 assert('Mutex#synchronize returns Fixnum') do
   m = Mutex.new
-  m.synchronize {42} == 42
+  assert_equal(42, m.synchronize { 42 })
 end
-
