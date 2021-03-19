@@ -557,22 +557,20 @@ mrb_thread_init(mrb_state* mrb, mrb_value self) {
     context->argv[i] = mrb_thread_migrate_value(mrb, argv[i], context->mrb);
   }
 
-  {
-    mrb_value gv = mrb_f_global_variables(mrb, self);
-    l = RARRAY_LEN(gv);
-    for (i = 0; i < l; i++) {
-      mrb_int len;
-      int ai = mrb_gc_arena_save(mrb);
-      mrb_value k = mrb_ary_entry(gv, i);
-      mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
-      if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
-        const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
-        mrb_gv_set(context->mrb,
-                   mrb_intern_static(context->mrb, p, len),
-                   mrb_thread_migrate_value(mrb, o, context->mrb));
-      }
-      mrb_gc_arena_restore(mrb, ai);
+  mrb_value gv = mrb_f_global_variables(mrb, self);
+  l = RARRAY_LEN(gv);
+  for (i = 0; i < l; i++) {
+    mrb_int len;
+    int ai = mrb_gc_arena_save(mrb);
+    mrb_value k = mrb_ary_entry(gv, i);
+    mrb_value o = mrb_gv_get(mrb, mrb_symbol(k));
+    if (is_safe_migratable_simple_value(mrb, o, context->mrb)) {
+      const char *p = mrb_sym2name_len(mrb, mrb_symbol(k), &len);
+      mrb_gv_set(context->mrb,
+                 mrb_intern_static(context->mrb, p, len),
+                 mrb_thread_migrate_value(mrb, o, context->mrb));
     }
+    mrb_gc_arena_restore(mrb, ai);
   }
 
   check_pthread_error(mrb, pthread_create(&context->thread, NULL, &mrb_thread_func, (void*) context));
