@@ -251,18 +251,20 @@ migrate_irep_child(mrb_state *mrb, mrb_irep *ret, mrb_state *mrb2)
 
   // migrate pool
   // FIXME: broken with mruby3
-  // for (i = 0; i < ret->plen; ++i) {
-  //   mrb_value v = ret->pool[i];
-  //   if (mrb_type(v) == MRB_TT_STRING) {
-  //     struct RString *s = mrb_str_ptr(v);
-  //     if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
-  //       char *old = RSTRING_PTR(v);
-  //       s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
-  //       memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
-  //       RSTR_UNSET_NOFREE_FLAG(s);
-  //     }
-  //   }
-  // }
+  #ifndef IREP_TT_SFLAG
+  for (i = 0; i < ret->plen; ++i) {
+    mrb_value v = ret->pool[i];
+    if (mrb_type(v) == MRB_TT_STRING) {
+      struct RString *s = mrb_str_ptr(v);
+      if (RSTR_NOFREE_P(s) && RSTRING_LEN(v) > 0) {
+        char *old = RSTRING_PTR(v);
+        s->as.heap.ptr = (char*)mrb_malloc(mrb2, RSTRING_LEN(v));
+        memcpy(s->as.heap.ptr, old, RSTRING_LEN(v));
+        RSTR_UNSET_NOFREE_FLAG(s);
+      }
+    }
+  }
+  #endif
 
   // migrate iseq
   if (ret->flags & MRB_ISEQ_NO_FREE) {
