@@ -25,6 +25,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if MRUBY_RELEASE_NO > 30100
+# include <mruby/internal.h>
+#endif
+
 /*
 For backward compatibility.
 See also https://github.com/mruby/mruby/commit/79a621dd739faf4cc0958e11d6a887331cf79e48
