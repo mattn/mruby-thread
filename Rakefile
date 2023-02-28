@@ -6,9 +6,9 @@ ENV['MRUBY_VERSION'] ||= 'stable'
 file :mruby do
   case ENV['MRUBY_VERSION']&.downcase
   when 'head', 'master'
-    sh(*%w[git clone --depth 1 git://github.com/mruby/mruby.git])
+    sh(*%w[git clone --depth 1 https://@github.com/mruby/mruby.git])
   when 'stable'
-    sh(*%w[git clone --depth 1 git://github.com/mruby/mruby.git -b stable])
+    sh(*%w[git clone --depth 1 https://@github.com/mruby/mruby.git -b stable])
   else
     sh "curl -L --fail --retry 3 --retry-delay 1 https://github.com/mruby/mruby/archive/#{ENV['MRUBY_VERSION']}.tar.gz -s -o - | tar zxf -" # rubocop:disable Layout/LineLength
     mv "mruby-#{ENV['MRUBY_VERSION']}", 'mruby'
